@@ -25,8 +25,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # enablement: turns Pages on for the repo the first time this runs,
+      # so no manual settings change is needed.
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       # The app is plain ES modules and CSS — Pages serves the repo as-is.
       - name: Upload site

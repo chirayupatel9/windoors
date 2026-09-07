@@ -119,6 +119,7 @@ export function start() {
   mount = $('#mount');
   bar = $('#topbar');
   bindGlobalEvents();
+  X.primeDownloads();   // resolve the save path before anyone clicks Export
 
   const restored = S.load();
   if (!S.state.ui.selected) S.state.ui.selected = S.state.doc.items[0]?.id || null;

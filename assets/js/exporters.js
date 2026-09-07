@@ -8,7 +8,44 @@ import { drawSVG } from './draw.js';
 
 const safe = (s) => String(s || 'quote').replace(/[^\w.-]+/g, '_').slice(0, 60);
 
-export function download(filename, blob) {
+/*
+ * Saving a file. Served normally (GitHub Pages, a local server, a file off a
+ * USB stick) a plain download link is the whole story. Inside a hosted viewer
+ * the frame is not allowed to start a download, so the host mediates it and
+ * the viewer confirms. Probe once, then take whichever path exists.
+ */
+let downloadsNs;   // undefined = not probed, null = plain links
+
+export async function primeDownloads() {
+  if (downloadsNs !== undefined) return downloadsNs;
+  downloadsNs = null;
+  try {
+    if (typeof window !== 'undefined' && typeof window.claude?.use === 'function') {
+      downloadsNs = (await window.claude.use('downloads')) || null;
+    }
+  } catch (e) {
+    downloadsNs = null;
+  }
+  return downloadsNs;
+}
+
+/** @returns {Promise<boolean>} true when the file was handed over. */
+export async function download(filename, blob) {
+  const ns = await primeDownloads();
+  if (ns) {
+    try {
+      await ns.save({ filename, data: blob });
+      return true;
+    } catch (err) {
+      if (err?.code === 'declined') return false;
+      if (err?.code === 'rate_limited') {
+        UI.toast('A save is already open — finish that one first', 'err');
+        return false;
+      }
+      UI.toast(err?.message || 'Could not save the file', 'err');
+      return false;
+    }
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -17,6 +54,7 @@ export function download(filename, blob) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return true;
 }
 
 export function itemSVG(item, lib, opts = {}) {
@@ -30,10 +68,10 @@ export function itemSVG(item, lib, opts = {}) {
   });
 }
 
-export function exportItemSVG(item) {
+export async function exportItemSVG(item) {
   const svg = itemSVG(item, S.state.lib);
-  download(`${safe(item.label)}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
-  UI.toast(`${item.label}.svg saved`);
+  const ok = await download(`${safe(item.label)}.svg`, new Blob([svg], { type: 'image/svg+xml' }));
+  if (ok) UI.toast(`${item.label}.svg saved`);
 }
 
 /** Rasterises an SVG string to a PNG blob at `scale`x. */
@@ -61,8 +99,7 @@ export function svgToPng(svg, scale = 3) {
 export async function exportItemPNG(item) {
   try {
     const blob = await svgToPng(itemSVG(item, S.state.lib), 3);
-    download(`${safe(item.label)}.png`, blob);
-    UI.toast(`${item.label}.png saved`);
+    if (await download(`${safe(item.label)}.png`, blob)) UI.toast(`${item.label}.png saved`);
   } catch (e) {
     UI.toast(e.message, 'err');
   }
@@ -93,9 +130,10 @@ export async function exportAllPNG() {
     const y = Math.floor(i / cols) * chh + (chh - im.height) / 2;
     ctx.drawImage(im, x, y);
   });
-  cv.toBlob((b) => {
-    if (b) download(`${safe(S.state.doc.quoteNo)}_drawings.png`, b);
-    UI.toast('Contact sheet saved');
+  cv.toBlob(async (b) => {
+    if (b && await download(`${safe(S.state.doc.quoteNo)}_drawings.png`, b)) {
+      UI.toast('Contact sheet saved');
+    }
   }, 'image/png');
 }
 
@@ -113,10 +151,10 @@ function loadImage(svg) {
 
 /* ---- job file ---- */
 
-export function exportJSON() {
-  download(`${safe(S.state.doc.quoteNo)}.windoors.json`,
+export async function exportJSON() {
+  const ok = await download(`${safe(S.state.doc.quoteNo)}.windoors.json`,
     new Blob([S.toJSON()], { type: 'application/json' }));
-  UI.toast('Job file saved');
+  if (ok) UI.toast('Job file saved');
 }
 
 export function importJSON() {
@@ -138,7 +176,7 @@ export function importJSON() {
 
 /* ---- CSV of the priced lines, for a spreadsheet ---- */
 
-export function exportCSV(q) {
+export async function exportCSV(q) {
   const head = ['#', 'Mark', 'Type', 'Width mm', 'Height mm', 'Sq.ft', 'Qty', 'Series', 'Glass',
     'Colour', 'Location', 'Floor', 'Unit price', 'Total price'];
   const rows = q.lines.map((l, i) => [
@@ -151,8 +189,8 @@ export function exportCSV(q) {
   const csv = [head, ...rows]
     .map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
     .join('\r\n');
-  download(`${safe(S.state.doc.quoteNo)}.csv`, new Blob(['﻿' + csv], { type: 'text/csv' }));
-  UI.toast('CSV saved');
+  const ok = await download(`${safe(S.state.doc.quoteNo)}.csv`, new Blob(['﻿' + csv], { type: 'text/csv' }));
+  if (ok) UI.toast('CSV saved');
 }
 
 /* ---- print ---- */

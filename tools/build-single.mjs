@@ -19,7 +19,7 @@ import { build } from 'esbuild';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFile(join(root, p), 'utf8');
 
-const TITLE = 'WinDoors — Aluminium Window & Door Quotation Studio';
+const TITLE = 'WinDoors Quotation Studio';
 const DESC = 'Draw aluminium windows and doors to size, pick the profile series and glazing, and print a priced quotation with elevation drawings.';
 
 const bundle = await build({

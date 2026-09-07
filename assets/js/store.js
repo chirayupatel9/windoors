@@ -52,13 +52,51 @@ export const defaultCompany = () => ({
   footer: 'powered by WinDoors Quotation Studio',
 });
 
+/* A first-run job so the tool opens showing what it does rather than blank.
+ * "Start a new quotation" in the Export menu clears it. */
+export function starterItems(lib) {
+  const ser = (family) => lib.series.find((s) => s.family === family)?.id || lib.series[0].id;
+  const glass = (frag) => lib.glass.find((g) => g.name.includes(frag))?.id || lib.glass[0].id;
+  const base = (n) => emptyItem(lib, n);
+
+  const sliding = {
+    ...base(1), label: 'W1', seriesId: ser('sliding'), glassId: glass('REFLECTIVE'),
+    width: 1800, height: 1500, location: 'LIVING ROOM', floor: '0',
+    sections: [{
+      id: U.uid('sec'), type: 'sliding', h: 1500, tracks: 2, mesh: 'left', cells: [],
+      panels: [{ id: U.uid('p'), fn: 'slide-l' }, { id: U.uid('p'), fn: 'slide-r' }],
+    }],
+  };
+  const casement = {
+    ...base(2), label: 'W2', seriesId: ser('casement'), glassId: glass('5 MM CLEAR'),
+    width: 1400, height: 1900, location: 'BEDROOM-1', floor: '1',
+    sections: [
+      { id: U.uid('sec'), type: 'grid', h: 500, tracks: 2, mesh: 'none', panels: [],
+        cells: [{ id: U.uid('c'), w: 700, fn: 'fix' }, { id: U.uid('c'), w: 700, fn: 'fix' }] },
+      { id: U.uid('sec'), type: 'grid', h: 1400, tracks: 2, mesh: 'none', panels: [],
+        cells: [{ id: U.uid('c'), w: 700, fn: 'casement-l' }, { id: U.uid('c'), w: 700, fn: 'casement-r' }] },
+    ],
+  };
+  const vent = {
+    ...base(3), label: 'V1', seriesId: ser('ventilator'), glassId: glass('FROSTED'),
+    width: 600, height: 900, location: 'COMMON BATHROOM', floor: '1',
+    sections: [
+      { id: U.uid('sec'), type: 'grid', h: 420, tracks: 2, mesh: 'none', panels: [],
+        cells: [{ id: U.uid('c'), w: 300, fn: 'casement-r' }, { id: U.uid('c'), w: 300, fn: 'fan' }] },
+      { id: U.uid('sec'), type: 'grid', h: 480, tracks: 2, mesh: 'none', panels: [],
+        cells: [{ id: U.uid('c'), w: 600, fn: 'louver' }] },
+    ],
+  };
+  return [sliding, casement, vent].map((i) => normaliseItem(i, lib));
+}
+
 export const defaultDoc = (lib) => ({
   company: defaultCompany(),
   quoteNo: 'QT-00001',
   date: U.todayISO(),
   salesPerson: '',
   customer: { name: '', address: '', phone: '', email: '', site: '' },
-  items: [emptyItem(lib, 1)],
+  items: starterItems(lib),
   charges: {
     discountPct: 0,
     installation: 0,
