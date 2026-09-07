@@ -132,6 +132,13 @@ const del = (title, fn, can) =>
   UI.iconBtn(ICON.trash, title, fn, { class: 'ibtn danger tiny', disabled: ro || !can });
 const addBtn = (label, fn) => UI.button(label, fn, { class: 'btn sm', disabled: ro });
 
+/**
+ * A table cell that carries its column name, so the same markup can be a dense
+ * table on a desktop and a stack of labelled fields on a phone.
+ */
+const td = (label, content, cls = '') =>
+  el('td', { class: cls, 'data-label': label || '' }, content);
+
 export function renderMastersTab(root) {
   const lib = S.state.lib;
   ro = S.mastersLocked();
@@ -229,16 +236,16 @@ function profileTable(lib) {
   lib.profiles.forEach((p, i) => {
     const perM = U.num(p.kgPerM) * U.num(p.ratePerKg);
     body.append(el('tr', {},
-      el('td', {}, tIn(p.code, (v) => S.update(() => { p.code = v; }), { class: 'inp sm' })),
-      el('td', {}, tIn(p.name, (v) => S.update(() => { p.name = v; }), { class: 'inp sm' })),
-      el('td', {}, sIn(p.role, Object.entries(PROFILE_ROLES).map(([v, l]) => ({ value: v, label: l })),
+      td('Code', tIn(p.code, (v) => S.update(() => { p.code = v; }), { class: 'inp sm' })),
+      td('Description', tIn(p.name, (v) => S.update(() => { p.name = v; }), { class: 'inp sm' })),
+      td('Role', sIn(p.role, Object.entries(PROFILE_ROLES).map(([v, l]) => ({ value: v, label: l })),
         (v) => S.update(() => { p.role = v; }), { class: 'inp sm' })),
-      el('td', {}, nIn(p.face, (v) => S.update(() => { p.face = U.num(v); }), { class: 'inp num sm', step: 1 })),
-      el('td', {}, nIn(p.kgPerM, (v) => S.update(() => { p.kgPerM = U.num(v); }), { class: 'inp num sm', step: 0.001 })),
-      el('td', {}, nIn(p.ratePerKg, (v) => S.update(() => { p.ratePerKg = U.num(v); }), { class: 'inp num sm', step: 1 })),
-      el('td', {}, nIn(p.barLength, (v) => S.update(() => { p.barLength = U.num(v); }), { class: 'inp num sm', step: 1 })),
-      el('td', { class: 'r calc' }, '₹ ' + U.inr(perM)),
-      el('td', {}, del('Remove profile', () => S.update(() => lib.profiles.splice(i, 1)), lib.profiles.length > 1))));
+      td('Face mm', nIn(p.face, (v) => S.update(() => { p.face = U.num(v); }), { class: 'inp num sm', step: 1 })),
+      td('kg / m', nIn(p.kgPerM, (v) => S.update(() => { p.kgPerM = U.num(v); }), { class: 'inp num sm', step: 0.001 })),
+      td('₹ / kg', nIn(p.ratePerKg, (v) => S.update(() => { p.ratePerKg = U.num(v); }), { class: 'inp num sm', step: 1 })),
+      td('Bar mm', nIn(p.barLength, (v) => S.update(() => { p.barLength = U.num(v); }), { class: 'inp num sm', step: 1 })),
+      td('₹ / m', '₹ ' + U.inr(perM), 'r calc'),
+      td('', del('Remove profile', () => S.update(() => lib.profiles.splice(i, 1)), lib.profiles.length > 1), 'act')));
   });
 
   return UI.section('Profile sections',
@@ -400,11 +407,11 @@ function rateTable(title, list, keys, labels, prefix) {
   const body = el('tbody', {});
   list.forEach((row, i) => {
     body.append(el('tr', {},
-      ...keys.map((k) => el('td', {},
+      ...keys.map((k, ci) => td(labels[ci],
         k === 'rate'
           ? nIn(row[k], (v) => S.update(() => { row[k] = U.num(v); }), { class: 'inp num sm', step: 1 })
           : tIn(row[k], (v) => S.update(() => { row[k] = v; }), { class: 'inp sm' }))),
-      el('td', {}, del('Remove', () => S.update(() => list.splice(i, 1)), list.length > 1))));
+      td('', del('Remove', () => S.update(() => list.splice(i, 1)), list.length > 1), 'act')));
   });
   return UI.section(title,
     el('div', { class: 'tablewrap' },
@@ -418,14 +425,14 @@ function colourTable(lib) {
   const body = el('tbody', {});
   lib.colours.forEach((c, i) => {
     body.append(el('tr', {},
-      el('td', {}, tIn(c.name, (v) => S.update(() => { c.name = v; }), { class: 'inp sm' })),
-      el('td', {}, tIn(c.brand, (v) => S.update(() => { c.brand = v; }), { class: 'inp sm' })),
-      el('td', {}, nIn(c.extra, (v) => S.update(() => { c.extra = U.num(v); }), { class: 'inp num sm', step: 1 })),
-      el('td', {}, el('input', {
+      td('Colour', tIn(c.name, (v) => S.update(() => { c.name = v; }), { class: 'inp sm' })),
+      td('Brand', tIn(c.brand, (v) => S.update(() => { c.brand = v; }), { class: 'inp sm' })),
+      td('Extra ₹/sq.ft', nIn(c.extra, (v) => S.update(() => { c.extra = U.num(v); }), { class: 'inp num sm', step: 1 })),
+      td('Swatch', el('input', {
         type: 'color', class: 'inp colour', value: c.swatch || '#8d9199', disabled: ro,
         oninput: (e) => S.update(() => { c.swatch = e.target.value; }),
       })),
-      el('td', {}, del('Remove', () => S.update(() => lib.colours.splice(i, 1)), lib.colours.length > 1))));
+      td('', del('Remove', () => S.update(() => lib.colours.splice(i, 1)), lib.colours.length > 1), 'act')));
   });
   return UI.section('Profile colours',
     el('p', { class: 'note' }, 'The swatch is what the drawing paints the aluminium with.'),
@@ -445,14 +452,14 @@ function hardwareTable(lib) {
   const body = el('tbody', {});
   lib.hardware.forEach((h, i) => {
     body.append(el('tr', {},
-      el('td', {}, tIn(h.name, (v) => S.update(() => { h.name = v; }), { class: 'inp sm' })),
-      el('td', {}, sIn(h.per, [
+      td('Item', tIn(h.name, (v) => S.update(() => { h.name = v; }), { class: 'inp sm' })),
+      td('Charged', sIn(h.per, [
         { value: 'sash', label: 'per leaf / sash' },
         { value: 'item', label: 'per window' },
         { value: 'sqft', label: 'per sq.ft' },
       ], (v) => S.update(() => { h.per = v; }), { class: 'inp sm' })),
-      el('td', {}, nIn(h.rate, (v) => S.update(() => { h.rate = U.num(v); }), { class: 'inp num sm', step: 10 })),
-      el('td', {}, del('Remove', () => S.update(() => lib.hardware.splice(i, 1)), lib.hardware.length > 1))));
+      td('₹', nIn(h.rate, (v) => S.update(() => { h.rate = U.num(v); }), { class: 'inp num sm', step: 10 })),
+      td('', del('Remove', () => S.update(() => lib.hardware.splice(i, 1)), lib.hardware.length > 1), 'act')));
   });
   return UI.section('Hardware',
     el('p', { class: 'note' }, 'Leaf hardware is applied automatically by opening type.'),

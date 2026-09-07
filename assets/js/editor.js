@@ -75,10 +75,19 @@ function editorPane(st, item) {
 
   // title block, the way a drawing sheet carries its own identification
   const canvas = el('div', { class: 'preview-canvas' });
+  /*
+   * The sheet is scaled to fit its column, so a hit target sized in drawing
+   * units ends up much smaller on screen — on a phone the dimension text lands
+   * around 10px tall, which no finger can hit. Measure the scale actually being
+   * used and grow the targets to suit, capped so that stacked dimension chains
+   * stay distinguishable from each other.
+   */
+  let hitPad = 0;
   const paint = () => {
-    canvas.innerHTML = drawSVG(item, series, { colour: colour?.swatch, interactive: true });
+    canvas.innerHTML = drawSVG(item, series, { colour: colour?.swatch, interactive: true, hitPad });
   };
   paint();
+  requestAnimationFrame(() => sizeTargets(canvas, paint, (v) => { hitPad = v; }, () => hitPad));
   bindSheetEditing(canvas, item, paint);
 
   const preview = el('div', { class: 'preview' }, canvas,
@@ -375,6 +384,21 @@ export function openPresetPicker(target) {
  * alone until the pointer is released, so the price and the item list do not
  * churn on every pixel.
  * ------------------------------------------------------------------ */
+
+const CHAIN_GAP = 25;   // SVG units between stacked dimension chains
+
+function sizeTargets(canvas, paint, setPad, getPad) {
+  const svg = canvas.querySelector('svg');
+  if (!svg?.viewBox?.baseVal?.width) return;
+  const shown = svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+  if (!shown) return;
+
+  const coarse = matchMedia('(pointer: coarse)').matches;
+  const wanted = coarse ? 44 : 26;              // comfortable target, in real px
+  // neighbouring chains sit CHAIN_GAP apart, so never grow past that
+  const pad = U.clamp(wanted / shown - 17, 0, CHAIN_GAP);
+  if (Math.abs(pad - getPad()) > 1) { setPad(pad); paint(); }
+}
 
 function bindSheetEditing(canvas, item, paint) {
   const infoOf = (n) => ({

@@ -56,6 +56,7 @@ export function render(sol, opts = {}) {
     caption: '',
     sqft: null,
     interactive: false,   // emit hit targets and drag grips for on-sheet editing
+    hitPad: 0,            // extra SVG units so a finger can land on them
     ...opts,
   };
   const uid = 'd' + (++uidc);
@@ -130,14 +131,14 @@ export function render(sol, opts = {}) {
   /* ---- dimension chains ---- */
   sol.chainsX.forEach((chain, i) => {
     const y = oy + ch + PX.chainFirst + i * PX.chainGap;
-    out.push(chainX(chain, { X, Y, y, top: oy + ch, last: i === nX - 1, live: o.interactive }));
+    out.push(chainX(chain, { X, Y, y, top: oy + ch, last: i === nX - 1, live: o.interactive, o }));
   });
   sol.chainsY.forEach((chain, i) => {
     const x = ox - PX.chainFirst - i * PX.chainGap;
-    out.push(chainY(chain, { X, Y, x, right: ox, last: i === nY - 1, live: o.interactive }));
+    out.push(chainY(chain, { X, Y, x, right: ox, last: i === nY - 1, live: o.interactive, o }));
   });
 
-  if (o.interactive) out.push(grips(sol, { X, Y, ox, oy, cw, ch }));
+  if (o.interactive) out.push(grips(sol, { X, Y, ox, oy, cw, ch, pad: o.hitPad }));
 
   /* ---- plan section under sliding items ---- */
   if (o.showPlan && sol.plan) {
@@ -324,7 +325,7 @@ function tagBox(cx, cy, label) {
 /* ---- dimension chains ---- */
 
 function chainX(chain, ctx) {
-  const { X, y, top, last, live } = ctx;
+  const { X, y, top, last, live, o } = ctx;
   const out = [];
   const w = last ? 1 : 0.75;
   for (const st of chain.stops) {
@@ -337,14 +338,15 @@ function chainX(chain, ctx) {
     out.push(arrowTick(a, y, 1), arrowTick(b, y, -1));
     const label = text(cx, y - 4, U.mm(p.value), last ? PX.font : PX.fontSm, C.dim, 'middle', last ? 600 : 400);
     out.push(live && chain.editable
-      ? hit(label, chain, p, cx, y - 4, Math.max(26, Math.min(b - a, 58)), 17, 'x')
+      ? hit(label, chain, p, cx, y - 4,
+        Math.max(26, Math.min(b - a, 58)) + o.hitPad, 17 + o.hitPad, 'x')
       : label);
   }
   return out.join('');
 }
 
 function chainY(chain, ctx) {
-  const { Y, x, right, last, live } = ctx;
+  const { Y, x, right, last, live, o } = ctx;
   const out = [];
   const w = last ? 1 : 0.75;
   for (const st of chain.stops) {
@@ -359,7 +361,8 @@ function chainY(chain, ctx) {
       `text-anchor="middle" font-size="${last ? PX.font : PX.fontSm}" ` +
       `font-weight="${last ? 600 : 400}" fill="${C.dim}">${U.escapeHtml(U.mm(p.value))}</text>`;
     out.push(live && chain.editable
-      ? hit(label, chain, p, x - 4, my, 17, Math.max(26, Math.min(b - a, 58)), 'y')
+      ? hit(label, chain, p, x - 4, my,
+        17 + o.hitPad, Math.max(26, Math.min(b - a, 58)) + o.hitPad, 'y')
       : label);
   }
   return out.join('');
@@ -436,6 +439,8 @@ function hit(label, chain, part, cx, cy, w, h, axis) {
 /** Draggable handles over each divider, and on the right and bottom edges. */
 function grips(sol, ctx) {
   const { X, Y, ox, oy, cw, ch } = ctx;
+  const G = 18 + (ctx.pad || 0);   // grab width in SVG units
+  const h = G / 2;
   const out = [];
   const bar = (x, y, w, h, data, cursor) =>
     `<rect class="grip" data-cursor="${cursor}" ${data} x="${r2(x)}" y="${r2(y)}" ` +
@@ -446,7 +451,7 @@ function grips(sol, ctx) {
     const band = sectionBand(sol, chain.sectionIndex, Y);
     for (let i = 1; i < chain.stops.length - 1; i++) {
       const p = chain.parts[i - 1];
-      out.push(bar(X(chain.stops[i]) - 5, band.top, 10, band.h,
+      out.push(bar(X(chain.stops[i]) - h, band.top, G, band.h,
         `data-src="cells" data-si="${chain.sectionIndex}" data-idx="${p.index}" data-val="${p.value}" data-axis="x"`,
         'ew'));
     }
@@ -456,15 +461,20 @@ function grips(sol, ctx) {
   if (rows) {
     for (let i = 1; i < rows.stops.length - 1; i++) {
       const p = rows.parts[i - 1];
-      out.push(bar(ox, Y(rows.stops[i]) - 5, cw, 10,
+      out.push(bar(ox, Y(rows.stops[i]) - h, cw, G,
         `data-src="rows" data-si="-1" data-idx="${p.index}" data-val="${p.value}" data-axis="y"`, 'ns'));
     }
   }
 
-  // overall size: the right and bottom edges of the frame
-  out.push(bar(ox + cw - 5, oy, 10, ch,
+  /*
+   * Overall size: the right and bottom edges. These sit wholly INSIDE the
+   * frame rather than straddling it — once widened for touch, a straddling
+   * band reaches over the dimension chains below and to the right, and its
+   * pointerdown would swallow the tap meant for a dimension label.
+   */
+  out.push(bar(ox + cw - G, oy, G, ch,
     `data-src="width" data-si="-1" data-idx="0" data-val="${Math.round(sol.width)}" data-axis="x"`, 'ew'));
-  out.push(bar(ox, oy + ch - 5, cw, 10,
+  out.push(bar(ox, oy + ch - G, cw - G, G,
     `data-src="height" data-si="-1" data-idx="0" data-val="${Math.round(sol.height)}" data-axis="y"`, 'ns'));
   return out.join('');
 }
