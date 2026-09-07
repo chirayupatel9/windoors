@@ -123,7 +123,7 @@ const listeners = new Set();
 export const state = {
   lib: defaultLibrary(),
   doc: null,
-  ui: { tab: 'items', selected: null, section: 0, cell: 0 },
+  ui: { tab: 'items', selected: null, section: 0, cell: 0, theme: 'system' },
 };
 state.doc = defaultDoc(state.lib);
 state.doc.items = state.doc.items.map((i) => normaliseItem(i, state.lib));
@@ -152,7 +152,7 @@ export function update(fn) {
 
 export function save() {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ v: 1, lib: state.lib, doc: state.doc }));
+    localStorage.setItem(KEY, JSON.stringify({ v: 1, lib: state.lib, doc: state.doc, theme: state.ui.theme }));
   } catch (e) { /* private mode / quota — the app still works in memory */ }
 }
 
@@ -164,6 +164,7 @@ export function load() {
     if (!data?.doc) return false;
     state.lib = migrateLib(data.lib);
     state.doc = migrateDoc(data.doc, state.lib);
+    if (['light', 'dark', 'system'].includes(data.theme)) state.ui.theme = data.theme;
     return true;
   } catch (e) {
     return false;
@@ -351,4 +352,34 @@ export function lockMasters() {
 
 export function removePasscode() {
   update((s) => { s.lib.lock = { hash: '', unlocked: true }; });
+}
+
+
+/* --------------------------------------------------------------------
+ * Theme. "system" leaves the document unstamped so prefers-color-scheme —
+ * or the theme a host has already stamped on us — decides; an explicit
+ * choice stamps data-theme and wins in both directions.
+ * ------------------------------------------------------------------ */
+
+export const THEMES = ['system', 'light', 'dark'];
+
+export function applyTheme() {
+  const root = document.documentElement;
+  if (state.ui.theme === 'system') delete root.dataset.theme;
+  else root.dataset.theme = state.ui.theme;
+}
+
+export function setTheme(theme) {
+  if (!THEMES.includes(theme)) return;
+  state.ui.theme = theme;
+  applyTheme();
+  emit();
+}
+
+/** What the page is actually showing right now. */
+export function resolvedTheme() {
+  if (state.ui.theme !== 'system') return state.ui.theme;
+  const stamped = document.documentElement.dataset.theme;
+  if (stamped === 'light' || stamped === 'dark') return stamped;
+  return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }

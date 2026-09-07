@@ -6,7 +6,7 @@ import * as UI from './ui.js';
 import * as S from './store.js';
 import { drawSVG } from './draw.js';
 import { priceItem } from './pricing.js';
-import { describe, solve, seriesFor, metalSummary } from './geometry.js';
+import { describe, solve, seriesFor, metalSummary, applyDimension, refit, MIN_MODULE } from './geometry.js';
 import { CELL_FN, SLIDING_FN, ALL_FN, PROFILE_ROLES } from './catalog.js';
 
 const roleName = (r) => PROFILE_ROLES[r] || r;
@@ -74,12 +74,18 @@ function editorPane(st, item) {
   const set = (patch) => S.update(() => Object.assign(item, patch));
 
   // title block, the way a drawing sheet carries its own identification
-  const preview = el('div', { class: 'preview' },
-    el('div', { class: 'preview-canvas', html: drawSVG(item, series, { colour: colour?.swatch }) }),
+  const canvas = el('div', { class: 'preview-canvas' });
+  const paint = () => {
+    canvas.innerHTML = drawSVG(item, series, { colour: colour?.swatch, interactive: true });
+  };
+  paint();
+  bindSheetEditing(canvas, item, paint);
+
+  const preview = el('div', { class: 'preview' }, canvas,
     el('div', { class: 'preview-legend' },
       el('span', { class: 'lead' }, `${item.label} · ${describe(item)}`),
       el('span', {}, `${U.mm(item.width)} × ${U.mm(item.height)} mm · ${U.round(price.sqft, 2).toFixed(2)} sq.ft`),
-      el('span', {}, st.doc.viewLabel)));
+      el('span', { class: 'preview-hint' }, 'Click a dimension · drag a divider')));
 
   return el('div', { class: 'editor' },
     el('div', { class: 'editor-top' },
@@ -127,16 +133,9 @@ const seriesHint = (s) => {
 /** Resizing keeps the section/cell proportions and re-fits them to the new size. */
 function resize(item, w, h) {
   S.update(() => {
-    if (w) item.width = Math.max(100, w);
-    if (h) item.height = Math.max(100, h);
-    const hs = U.normaliseParts(item.sections.map((s) => s.h), item.height);
-    item.sections.forEach((s, i) => {
-      s.h = hs[i];
-      if (s.cells?.length) {
-        const ws = U.normaliseParts(s.cells.map((c) => c.w), item.width);
-        s.cells.forEach((c, j) => (c.w = ws[j]));
-      }
-    });
+    if (w) item.width = Math.max(MIN_MODULE, w);
+    if (h) item.height = Math.max(MIN_MODULE, h);
+    refit(item);
   });
 }
 
@@ -327,17 +326,7 @@ function swap(arr, a, b) {
   [arr[a], arr[b]] = [arr[b], arr[a]];
 }
 
-/** Keeps section heights summing to the item height and cell widths to the width. */
-function refit(item) {
-  const hs = U.normaliseParts(item.sections.map((s) => s.h), item.height);
-  item.sections.forEach((s, i) => {
-    s.h = hs[i];
-    if (s.cells?.length) {
-      const ws = U.normaliseParts(s.cells.map((c) => c.w), item.width);
-      s.cells.forEach((c, j) => (c.w = ws[j]));
-    }
-  });
-}
+/* refit lives in geometry.js — the drawing and the editor must agree on it. */
 
 /* ---- preset picker ---- */
 
@@ -371,4 +360,112 @@ export function openPresetPicker(target) {
   }
 
   const close = UI.modal(target ? `Change type — ${target.label}` : 'Add window or door', body);
+}
+
+
+/* --------------------------------------------------------------------
+ * Editing on the sheet.
+ *
+ * Click any dimension to type an exact millimetre value, or drag a divider
+ * or the frame edge to size it by eye. Changing a module keeps the overall
+ * size and takes the difference from its neighbour; changing an overall
+ * dimension rescales what is inside it.
+ *
+ * During a drag only the drawing is repainted — the surrounding UI is left
+ * alone until the pointer is released, so the price and the item list do not
+ * churn on every pixel.
+ * ------------------------------------------------------------------ */
+
+function bindSheetEditing(canvas, item, paint) {
+  const infoOf = (n) => ({
+    source: n.dataset.src,
+    sectionIndex: U.num(n.dataset.si, -1),
+    index: U.num(n.dataset.idx, 0),
+    value: U.num(n.dataset.val, 0),
+    axis: n.dataset.axis,
+    x: U.num(n.dataset.x, 0),
+    y: U.num(n.dataset.y, 0),
+  });
+
+  canvas.addEventListener('pointerdown', (e) => {
+    const grip = e.target.closest('.grip');
+    if (!grip) return;
+    e.preventDefault();
+    beginDrag(e, infoOf(grip), item, canvas, paint);
+  });
+
+  const open = (node) => openDimensionInput(canvas, item, infoOf(node), paint);
+  canvas.addEventListener('click', (e) => {
+    const h = e.target.closest('.dimhit');
+    if (h) open(h);
+  });
+  canvas.addEventListener('keydown', (e) => {
+    const h = e.target.closest('.dimhit');
+    if (h && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(h); }
+  });
+}
+
+function beginDrag(e, info, item, canvas, paint) {
+  const svg = canvas.querySelector('svg');
+  const scale = U.num(svg?.dataset.scale, 0);
+  const shown = svg ? svg.getBoundingClientRect().width / svg.viewBox.baseVal.width : 1;
+  const mmPerPx = scale > 0 ? 1 / (scale * shown) : 0;
+  if (!mmPerPx) return;
+
+  const start = { x: e.clientX, y: e.clientY };
+  document.body.classList.add(info.axis === 'x' ? 'dragging-x' : 'dragging-y');
+  let changed = false;
+
+  const move = (ev) => {
+    const d = (info.axis === 'x' ? ev.clientX - start.x : ev.clientY - start.y) * mmPerPx;
+    if (applyDimension(item, info, info.value + d)) { changed = true; paint(); }
+  };
+  const end = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', end);
+    window.removeEventListener('pointercancel', end);
+    document.body.classList.remove('dragging-x', 'dragging-y');
+    if (changed) S.emit();   // now refresh price, list and totals
+  };
+  // listeners live on the window so repainting the sheet cannot interrupt the drag
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
+}
+
+function openDimensionInput(canvas, item, info, paint) {
+  canvas.querySelector('.dim-input')?.remove();
+  const svg = canvas.querySelector('svg');
+  if (!svg) return;
+
+  const box = svg.getBoundingClientRect();
+  const host = canvas.getBoundingClientRect();
+  const k = box.width / svg.viewBox.baseVal.width;
+
+  const input = el('input', {
+    type: 'number', class: 'dim-input', value: Math.round(info.value),
+    min: MIN_MODULE, step: 1, 'aria-label': 'Dimension in millimetres',
+  });
+  Object.assign(input.style, {
+    left: `${box.left - host.left + info.x * k - 34}px`,
+    top: `${box.top - host.top + info.y * k - 13}px`,
+  });
+  canvas.append(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const commit = (save) => {
+    if (done) return;
+    done = true;
+    const v = U.num(input.value, NaN);
+    input.remove();
+    if (save && Number.isFinite(v) && applyDimension(item, info, v)) S.emit();
+    else paint();
+  };
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); commit(true); }
+    if (ev.key === 'Escape') { ev.preventDefault(); commit(false); }
+  });
+  input.addEventListener('blur', () => commit(true));
 }

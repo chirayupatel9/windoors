@@ -63,6 +63,10 @@ const body = `<header id="topbar" class="topbar"></header>
 </div>`;
 
 const boot = `
+try {
+  var t = JSON.parse(localStorage.getItem('windoors.v1') || '{}').theme;
+  if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+} catch (e) {}
 document.body.dataset.tab = 'items';
 try { WinDoors.start(); }
 catch (err) {

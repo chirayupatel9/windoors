@@ -112,11 +112,15 @@ export function solve(item, series) {
         });
       }
 
-      // dimension chain at the interlock centre-lines, measured across the frame
-      const stops = [0];
-      for (let k = 1; k < tracks; k++) stops.push(left + k * step + OL / 2);
-      stops.push(W);
-      chainsX.push(toChain(stops));
+      // dimension chain at the interlock centre-lines, measured across the frame.
+      // Sash widths follow from the track count and interlock, so they are shown
+      // but not editable — the overall width is what you change.
+      if (tracks > 1) {
+        const stops = [0];
+        for (let k = 1; k < tracks; k++) stops.push(left + k * step + OL / 2);
+        stops.push(W);
+        chainsX.push(toChain(stops, 'sliding', si));
+      }
     } else {
       const cells = sec.cells?.length ? sec.cells : [{ fn: 'fix' }];
       const colW = normaliseParts(cells.map((c) => N(c.w, 1)), W);
@@ -149,13 +153,13 @@ export function solve(item, series) {
         }
       });
 
-      if (cells.length > 1) chainsX.push(toChain(xEdge));
+      if (cells.length > 1) chainsX.push(toChain(xEdge, 'cells', si));
     }
   });
 
-  if (sections.length > 1) chainsY.push(toChain(yEdge));
-  chainsX.push(toChain([0, W]));
-  chainsY.push(toChain([0, H]));
+  if (sections.length > 1) chainsY.push(toChain(yEdge, 'rows'));
+  chainsX.push(toChain([0, W], 'width'));
+  chainsY.push(toChain([0, H], 'height'));
 
   labelPanes(panes);
 
@@ -174,24 +178,38 @@ const inset = (r, d) => ({
   w: Math.max(1, r.w - 2 * d), h: Math.max(1, r.h - 2 * d),
 });
 
-function toChain(stops) {
+function toChain(stops, source = 'other', sectionIndex = -1) {
   const parts = [];
   for (let i = 1; i < stops.length; i++) {
     // shop drawings dimension to whole millimetres
-    parts.push({ from: stops[i - 1], to: stops[i], value: Math.round(stops[i] - stops[i - 1]) });
+    parts.push({ from: stops[i - 1], to: stops[i], value: Math.round(stops[i] - stops[i - 1]), index: i - 1 });
   }
-  return { stops, parts, total: stops[stops.length - 1] - stops[0] };
+  return {
+    stops, parts, source, sectionIndex,
+    editable: source === 'cells' || source === 'rows' || source === 'width' || source === 'height',
+    total: stops[stops.length - 1] - stops[0],
+  };
 }
 
-/** Drops a sub-chain that says the same thing as the overall chain. */
+/**
+ * Drops a chain that repeats one already drawn *for the same thing*. Two rows
+ * that happen to share a column split are NOT the same thing — each has to stay
+ * separately dimensioned, or half the item becomes uneditable on the sheet.
+ */
 function dedupeChains(chains) {
-  const seen = new Set();
-  return chains.filter((c) => {
-    const key = c.stops.map((s) => Math.round(s)).join('|');
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const seen = new Map();
+  const out = [];
+  for (const c of chains) {
+    const key = [c.source, c.sectionIndex, ...c.stops.map((s) => Math.round(s))].join('|');
+    const prev = seen.get(key);
+    if (prev) {
+      if (c.editable && !prev.editable) Object.assign(prev, c);
+      continue;
+    }
+    seen.set(key, c);
+    out.push(c);
+  }
+  return out;
 }
 
 /** Shop labels: S1.. for leaves, F1.. for fixed, L1.., MS1.., FAN. */
@@ -407,4 +425,72 @@ export function metalSummary(sol, item, series, lib) {
     lines.push({ role, profile: prof, metres, kg: lineKg, cost: lineCost, bars });
   }
   return { lines, kg, cost, unpriced, totalMm: [...byRole.values()].reduce((a, b) => a + b, 0) };
+}
+
+
+/* --------------------------------------------------------------------
+ * Editing a dimension on the drawing.
+ *
+ * Changing one module keeps the overall size and moves the divider: the
+ * millimetres come off the neighbouring module, the way dragging a mullion
+ * behaves on a drawing board. Changing an overall dimension rescales the
+ * modules inside it proportionally.
+ * ------------------------------------------------------------------ */
+
+export const MIN_MODULE = 80;   // mm — below this a panel cannot be built
+
+/**
+ * @returns {boolean} true when the model changed.
+ */
+export function applyDimension(item, { source, sectionIndex, index }, valueMm) {
+  const want = Math.round(N(valueMm));
+  if (!Number.isFinite(want) || want < MIN_MODULE) return false;
+
+  if (source === 'width' || source === 'height') {
+    const key = source === 'width' ? 'width' : 'height';
+    if (want === N(item[key])) return false;
+    item[key] = want;
+    refit(item);
+    return true;
+  }
+
+  const list = source === 'rows'
+    ? item.sections
+    : item.sections[sectionIndex]?.cells;
+  if (!list || index < 0 || index >= list.length) return false;
+
+  const key = source === 'rows' ? 'h' : 'w';
+  const total = list.reduce((a, p) => a + N(p[key]), 0);
+  const current = N(list[index][key]);
+  if (want === current) return false;
+
+  // take the difference from the neighbour, keeping the overall size
+  const nb = index + 1 < list.length ? index + 1 : index - 1;
+  if (nb < 0) {
+    // the only module — this is really the overall dimension
+    return applyDimension(item, { source: source === 'rows' ? 'height' : 'width' }, want);
+  }
+  const spare = N(list[nb][key]) - MIN_MODULE;
+  const delta = U.clamp(want - current, -(current - MIN_MODULE), spare);
+  if (!delta) return false;
+
+  list[index][key] = current + delta;
+  list[nb][key] = N(list[nb][key]) - delta;
+
+  // guard against drift from earlier rounding
+  const after = list.reduce((a, p) => a + N(p[key]), 0);
+  if (after !== total) list[nb][key] += total - after;
+  return true;
+}
+
+/** Section heights sum to the item height, cell widths to the item width. */
+export function refit(item) {
+  const hs = U.normaliseParts(item.sections.map((s) => N(s.h)), N(item.height));
+  item.sections.forEach((s, i) => {
+    s.h = hs[i];
+    if (s.cells?.length) {
+      const ws = U.normaliseParts(s.cells.map((c) => N(c.w)), N(item.width));
+      s.cells.forEach((c, j) => (c.w = ws[j]));
+    }
+  });
 }

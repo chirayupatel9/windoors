@@ -30,6 +30,14 @@ The drawing carries what a shop drawing carries:
 - mesh hatching, louver slats and exhaust-fan cut-outs
 - a plan section under sliding items showing the tracks, `OUT` and `IN`
 
+**Size it on the drawing.** Every dimension on the sheet is live. Click one and
+type an exact millimetre value, or drag a mullion, a transom or the frame edge
+to size it by eye. Changing a module keeps the overall size and takes the
+difference from its neighbour, the way moving a divider behaves on a drawing
+board; changing an overall dimension rescales what is inside it. Sliding sash
+widths follow from the track count and interlock, so they are dimensioned but
+not editable — you change the overall width instead.
+
 **Build any configuration.** An item is a stack of rows; each row is either a run
 of fixed/openable panels split by mullions, or a sliding track with 1–6 sashes and
 an optional mosquito-net sash. Row heights and panel widths always re-fit to the
@@ -94,6 +102,11 @@ customer, charges and the terms & conditions text.
 
 ## Keyboard
 
+Light and dark both ship. The theme button in the top bar cycles
+**follows your device → light → dark**, and the choice is remembered per
+browser. The drawing sheet stays paper-white in both, because that is what
+prints.
+
 | Key | Action |
 | --- | --- |
 | `1` `2` `3` `4` | Items / Quotation / Setup / Masters |
@@ -122,11 +135,14 @@ node tools/build-single.mjs   # -> dist/index.html
 
 ```
 index.html
-assets/css/app.css        application chrome
+assets/css/fonts.css      self-hosted Space Grotesk / IBM Plex faces
+assets/css/app.css        application chrome, light and dark
 assets/css/print.css      the A4 quotation sheet, screen and paper
 assets/js/
   geometry.js             mm layout solver: members, panes, dimension chains,
-                          cut lengths and metal weight
+                          cut lengths, metal weight, and the rules for
+                          editing a dimension
+  icons.js                inline SVG icon set
   draw.js                 SVG elevation renderer and plan section
   pricing.js              per-item cost build-up and quotation totals
   catalog.js              built-in profile sections, series, glass, mesh,

@@ -55,6 +55,7 @@ export function render(sol, opts = {}) {
     showTags: true,
     caption: '',
     sqft: null,
+    interactive: false,   // emit hit targets and drag grips for on-sheet editing
     ...opts,
   };
   const uid = 'd' + (++uidc);
@@ -87,7 +88,8 @@ export function render(sol, opts = {}) {
   out.push(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${r2(svgW)} ${r2(svgH)}" ` +
     `width="${r2(svgW)}" height="${r2(svgH)}" class="elev" ` +
-    `font-family="'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace">`
+    `font-family="'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace" ` +
+    `data-scale="${s}" data-ox="${r2(ox)}" data-oy="${r2(oy)}">`
   );
   out.push(defs(uid, o.colour));
   out.push(`<rect x="0" y="0" width="${r2(svgW)}" height="${r2(svgH)}" fill="#fff"/>`);
@@ -128,12 +130,14 @@ export function render(sol, opts = {}) {
   /* ---- dimension chains ---- */
   sol.chainsX.forEach((chain, i) => {
     const y = oy + ch + PX.chainFirst + i * PX.chainGap;
-    out.push(chainX(chain, { X, Y, y, top: oy + ch, last: i === nX - 1 }));
+    out.push(chainX(chain, { X, Y, y, top: oy + ch, last: i === nX - 1, live: o.interactive }));
   });
   sol.chainsY.forEach((chain, i) => {
     const x = ox - PX.chainFirst - i * PX.chainGap;
-    out.push(chainY(chain, { X, Y, x, right: ox, last: i === nY - 1 }));
+    out.push(chainY(chain, { X, Y, x, right: ox, last: i === nY - 1, live: o.interactive }));
   });
+
+  if (o.interactive) out.push(grips(sol, { X, Y, ox, oy, cw, ch }));
 
   /* ---- plan section under sliding items ---- */
   if (o.showPlan && sol.plan) {
@@ -320,7 +324,7 @@ function tagBox(cx, cy, label) {
 /* ---- dimension chains ---- */
 
 function chainX(chain, ctx) {
-  const { X, y, top, last } = ctx;
+  const { X, y, top, last, live } = ctx;
   const out = [];
   const w = last ? 1 : 0.75;
   for (const st of chain.stops) {
@@ -328,15 +332,19 @@ function chainX(chain, ctx) {
   }
   for (const p of chain.parts) {
     const a = X(p.from), b = X(p.to);
+    const cx = (a + b) / 2;
     out.push(line(a, y, b, y, C.dim, w));
     out.push(arrowTick(a, y, 1), arrowTick(b, y, -1));
-    out.push(text((a + b) / 2, y - 4, U.mm(p.value), last ? PX.font : PX.fontSm, C.dim, 'middle', last ? 600 : 400));
+    const label = text(cx, y - 4, U.mm(p.value), last ? PX.font : PX.fontSm, C.dim, 'middle', last ? 600 : 400);
+    out.push(live && chain.editable
+      ? hit(label, chain, p, cx, y - 4, Math.max(26, Math.min(b - a, 58)), 17, 'x')
+      : label);
   }
   return out.join('');
 }
 
 function chainY(chain, ctx) {
-  const { Y, x, right, last } = ctx;
+  const { Y, x, right, last, live } = ctx;
   const out = [];
   const w = last ? 1 : 0.75;
   for (const st of chain.stops) {
@@ -344,10 +352,15 @@ function chainY(chain, ctx) {
   }
   for (const p of chain.parts) {
     const a = Y(p.from), b = Y(p.to);
-    out.push(`<line x1="${r2(x)}" y1="${r2(a)}" x2="${r2(x)}" y2="${r2(b)}" stroke="${C.dim}" stroke-width="${w}"/>`);
+    out.push(line(x, a, x, b, C.dim, w));
     out.push(arrowTickV(x, a, 1), arrowTickV(x, b, -1));
     const my = (a + b) / 2;
-    out.push(`<text x="${r2(x - 4)}" y="${r2(my)}" transform="rotate(-90 ${r2(x - 4)} ${r2(my)})" text-anchor="middle" font-size="${last ? PX.font : PX.fontSm}" font-weight="${last ? 600 : 400}" fill="${C.dim}">${U.escapeHtml(U.mm(p.value))}</text>`);
+    const label = `<text x="${r2(x - 4)}" y="${r2(my)}" transform="rotate(-90 ${r2(x - 4)} ${r2(my)})" ` +
+      `text-anchor="middle" font-size="${last ? PX.font : PX.fontSm}" ` +
+      `font-weight="${last ? 600 : 400}" fill="${C.dim}">${U.escapeHtml(U.mm(p.value))}</text>`;
+    out.push(live && chain.editable
+      ? hit(label, chain, p, x - 4, my, 17, Math.max(26, Math.min(b - a, 58)), 'y')
+      : label);
   }
   return out.join('');
 }
@@ -406,3 +419,60 @@ export function shade(hex, t) {
     U.clamp(Math.round(t >= 0 ? c + (255 - c) * t : c * (1 + t)), 0, 255));
   return '#' + ch.map((c) => c.toString(16).padStart(2, '0')).join('');
 }
+
+
+/* ---- on-sheet editing: click a dimension, or drag a divider ---- */
+
+/** Wraps a dimension label in a clickable target carrying what it edits. */
+function hit(label, chain, part, cx, cy, w, h, axis) {
+  return `<g class="dimhit" tabindex="0" role="button" ` +
+    `aria-label="${U.escapeHtml(part.value)} millimetres — click to change" ` +
+    `data-src="${chain.source}" data-si="${chain.sectionIndex}" data-idx="${part.index}" ` +
+    `data-val="${part.value}" data-axis="${axis}" data-x="${r2(cx)}" data-y="${r2(cy)}">` +
+    `<rect x="${r2(cx - w / 2)}" y="${r2(cy - h / 2)}" width="${r2(w)}" height="${r2(h)}" ` +
+    `rx="3" fill="transparent"/>${label}</g>`;
+}
+
+/** Draggable handles over each divider, and on the right and bottom edges. */
+function grips(sol, ctx) {
+  const { X, Y, ox, oy, cw, ch } = ctx;
+  const out = [];
+  const bar = (x, y, w, h, data, cursor) =>
+    `<rect class="grip" data-cursor="${cursor}" ${data} x="${r2(x)}" y="${r2(y)}" ` +
+    `width="${r2(w)}" height="${r2(h)}" rx="2" fill="transparent"/>`;
+
+  for (const chain of sol.chainsX) {
+    if (chain.source !== 'cells') continue;
+    const band = sectionBand(sol, chain.sectionIndex, Y);
+    for (let i = 1; i < chain.stops.length - 1; i++) {
+      const p = chain.parts[i - 1];
+      out.push(bar(X(chain.stops[i]) - 5, band.top, 10, band.h,
+        `data-src="cells" data-si="${chain.sectionIndex}" data-idx="${p.index}" data-val="${p.value}" data-axis="x"`,
+        'ew'));
+    }
+  }
+
+  const rows = sol.chainsY.find((c) => c.source === 'rows');
+  if (rows) {
+    for (let i = 1; i < rows.stops.length - 1; i++) {
+      const p = rows.parts[i - 1];
+      out.push(bar(ox, Y(rows.stops[i]) - 5, cw, 10,
+        `data-src="rows" data-si="-1" data-idx="${p.index}" data-val="${p.value}" data-axis="y"`, 'ns'));
+    }
+  }
+
+  // overall size: the right and bottom edges of the frame
+  out.push(bar(ox + cw - 5, oy, 10, ch,
+    `data-src="width" data-si="-1" data-idx="0" data-val="${Math.round(sol.width)}" data-axis="x"`, 'ew'));
+  out.push(bar(ox, oy + ch - 5, cw, 10,
+    `data-src="height" data-si="-1" data-idx="0" data-val="${Math.round(sol.height)}" data-axis="y"`, 'ns'));
+  return out.join('');
+}
+
+const sectionBand = (sol, si, Y) => {
+  const panes = sol.panes.filter((p) => p.sectionIndex === si);
+  if (!panes.length) return { top: 0, h: 0 };
+  const top = Math.min(...panes.map((p) => Y(p.y)));
+  const bot = Math.max(...panes.map((p) => Y(p.y + p.h)));
+  return { top, h: bot - top };
+};

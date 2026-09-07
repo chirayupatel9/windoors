@@ -57,6 +57,7 @@ function topbar(st) {
       el('strong', {}, '₹ ' + U.inr(q.grand, 0))),
 
     el('div', { class: 'actions' },
+      themeToggle(st),
       printButton(),
       el('div', { class: 'menu' },
         exportButton(),
@@ -79,6 +80,16 @@ function topbar(st) {
             'Clear this quotation and start again? Your library is kept.',
             () => { S.reset(); go('items'); UI.toast('New quotation started'); }, 'Start new')))))
   ];
+}
+
+/* system / light / dark, cycled in that order; the icon shows what is on. */
+function themeToggle(st) {
+  const order = { system: 'light', light: 'dark', dark: 'system' };
+  const icon = { system: ICON.monitor, light: ICON.sun, dark: ICON.moon };
+  const label = { system: 'Theme: follows your device', light: 'Theme: light', dark: 'Theme: dark' };
+  const cur = st.ui.theme;
+  return UI.iconBtn(icon[cur], `${label[cur]} — click for ${order[cur]}`,
+    () => S.setTheme(order[cur]), { class: 'ibtn theme' });
 }
 
 function printButton() {
@@ -139,6 +150,7 @@ export function start() {
   X.primeDownloads();   // resolve the save path before anyone clicks Export
 
   const restored = S.load();
+  S.applyTheme();
   if (!S.state.ui.selected) S.state.ui.selected = S.state.doc.items[0]?.id || null;
 
   const hash = location.hash.replace('#', '');
