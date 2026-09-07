@@ -76,6 +76,12 @@ Open **Masters** and edit in place — nothing is hard-coded:
 | Mesh | Mesh types and rate per sq.ft |
 | Profile colours | Name, brand, extra per sq.ft, and the swatch the drawing paints aluminium with |
 | Hardware | Charged per leaf, per window or per sq.ft |
+| Charge defaults | Labour ₹/sq.ft, discount, installation, transport, loading and tax that a new quotation starts from |
+
+A quotation takes its own copy of the charge defaults when it is created, so
+changing a rate in Masters never silently reprices a quote you have already
+sent — there is an explicit button to pull the current defaults into the open
+quotation when you do want that.
 
 Assigning a section to a series does two things at once: its **face width takes
 over the drawing** for that member (the field shows where it came from and stops
@@ -104,7 +110,9 @@ customer, charges and the terms & conditions text.
 
 The charges that get settled last — labour, cartage, the discount agreed on the
 phone, GST — sit on the Quotation tab itself, so they can be adjusted while
-watching the total rather than in a separate screen. On a phone the A4 sheet
+watching the total rather than in a separate screen. Labour is charged **per
+square foot** across the whole job; the rate comes from Masters and the
+quotation shows both the rate and what it comes to. On a phone the A4 sheet
 scales to the screen width, the way a print preview does; what prints is
 unaffected.
 

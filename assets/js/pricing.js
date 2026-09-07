@@ -137,7 +137,8 @@ export function priceQuote(doc, lib) {
   const discount = basic * (discountPct / 100);
   const afterDiscount = basic - discount;
 
-  const labour = N(c.labour);
+  const labourRate = N(c.labourPerSqft);
+  const labour = labourRate * totalSqft;
   const installation = N(c.installation);
   const transport = N(c.transport);
   const loading = N(c.loading);
@@ -153,7 +154,7 @@ export function priceQuote(doc, lib) {
   return {
     lines, basic, totalSqft, totalQty,
     discountPct, discount, afterDiscount,
-    labour, installation, transport, loading, other,
+    labour, labourRate, installation, transport, loading, other,
     subTotal, gstPct, gst, roundOff, grand,
     avgPerSqft: totalSqft > 0 ? afterDiscount / totalSqft : 0,
   };

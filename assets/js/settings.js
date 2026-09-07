@@ -76,7 +76,8 @@ export function renderSetupTab(root) {
           UI.field('Installation ₹', UI.numInput(doc.charges.installation, (v) => setChg({ installation: U.num(v) }), { step: 500 }))),
         UI.grid(2,
           UI.field('Labour charge label', UI.textInput(doc.charges.labourLabel, (v) => setChg({ labourLabel: v }))),
-          UI.field('Labour ₹', UI.numInput(doc.charges.labour, (v) => setChg({ labour: U.num(v) }), { step: 500 }))),
+          UI.field('Labour ₹ / sq.ft', UI.numInput(doc.charges.labourPerSqft, (v) => setChg({ labourPerSqft: U.num(v) }), { step: 5, min: 0 }),
+            q.labour ? `= ₹ ${U.inr(q.labour)} over ${U.round(q.totalSqft, 2)} sq.ft` : null)),
         UI.grid(2,
           UI.field('Transportation ₹', UI.numInput(doc.charges.transport, (v) => setChg({ transport: U.num(v) }), { step: 500 })),
           UI.field('Loading & unloading ₹', UI.numInput(doc.charges.loading, (v) => setChg({ loading: U.num(v) }), { step: 500 }))),
@@ -143,6 +144,7 @@ export function renderMastersTab(root) {
     rateTable('Mesh', lib.mesh, ['name', 'rate'], ['Mesh', '₹ / sq.ft'], 'msh'),
     colourTable(lib),
     hardwareTable(lib),
+    chargeRates(lib),
     UI.section('Reset',
       el('p', { class: 'note' }, 'Restores the built-in profiles, series, glass and hardware. Your quotation items are kept.'),
       UI.button('Restore default masters', () => UI.confirmDialog(
@@ -345,6 +347,52 @@ const hasAnySection = (a) => Object.values(a || {}).some(Boolean);
 const segBtn = (label, active, onClick) => el('button', {
   type: 'button', class: 'segbtn' + (active ? ' on' : ''), disabled: ro, onclick: onClick,
 }, label);
+
+/* ---- charge defaults ---- */
+
+/*
+ * What a NEW quotation starts from. Editing a rate here never touches a quote
+ * that already exists — each quotation keeps its own copy from the day it was
+ * made, so last month's numbers stay as they were sent.
+ */
+function chargeRates(lib) {
+  const r = lib.chargeRates;
+  const set = (patch) => S.update(() => Object.assign(r, patch));
+  const num = (label, key, step, hint) => UI.field(label,
+    nIn(r[key], (v) => set({ [key]: U.num(v) }), { class: 'inp num sm', step, min: 0 }), hint);
+
+  return UI.section('Charge defaults',
+    el('p', { class: 'note' },
+      'Applied to every new quotation. Site labour is charged per square foot across the whole job — separate from the fabrication labour on a series, which sits inside the item price when that series is costed by weight.'),
+    UI.grid(3,
+      UI.field('Labour charge label', tIn(r.labourLabel, (v) => set({ labourLabel: v }), { class: 'inp sm' })),
+      num('Labour ₹ / sq.ft', 'labourPerSqft', 5, 'Multiplied by the total area of the quotation'),
+      num('Default discount %', 'discountPct', 0.5)),
+    UI.grid(3,
+      num('Installation ₹', 'installation', 500),
+      num('Transportation ₹', 'transport', 500),
+      num('Loading & unloading ₹', 'loading', 500)),
+    UI.grid(3,
+      UI.field('Tax label', tIn(r.gstLabel, (v) => set({ gstLabel: v }), { class: 'inp sm' })),
+      num('Tax %', 'gstPct', 1),
+      UI.field('Other charge label', tIn(r.otherLabel, (v) => set({ otherLabel: v }), { class: 'inp sm' }))),
+    UI.row(
+      UI.button('Apply these to the open quotation', () => UI.confirmDialog(
+        'Replace the charges on the quotation you have open with these defaults?',
+        () => S.update((st) => {
+          const c = st.doc.charges;
+          c.labourPerSqft = U.num(r.labourPerSqft);
+          c.labourLabel = r.labourLabel;
+          c.discountPct = U.num(r.discountPct);
+          c.installation = U.num(r.installation);
+          c.transport = U.num(r.transport);
+          c.loading = U.num(r.loading);
+          c.gstPct = U.num(r.gstPct);
+          c.gstLabel = r.gstLabel;
+          c.otherLabel = r.otherLabel;
+          UI.toast('Charges updated from the defaults');
+        }), 'Apply'), { class: 'btn', disabled: ro })));
+}
 
 /* ---- simple rate tables ---- */
 

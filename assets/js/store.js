@@ -36,6 +36,7 @@ export const defaultLibrary = () => ({
   mesh: CAT.defaultMesh(),
   colours: CAT.defaultColours(),
   hardware: CAT.defaultHardware(),
+  chargeRates: CAT.defaultChargeRates(),
   lock: { hash: '', unlocked: true },
 });
 
@@ -99,17 +100,18 @@ export const defaultDoc = (lib) => ({
   salesPerson: '',
   customer: { name: '', address: '', phone: '', email: '', site: '' },
   items: starterItems(lib),
+  // seeded from the library so a new quote starts on your standard rates
   charges: {
-    discountPct: 0,
-    labour: 0,
-    labourLabel: 'Labour charges',
-    installation: 0,
-    transport: 0,
-    loading: 0,
+    discountPct: U.num(lib.chargeRates?.discountPct),
+    labourPerSqft: U.num(lib.chargeRates?.labourPerSqft),
+    labourLabel: lib.chargeRates?.labourLabel || 'Labour charges',
+    installation: U.num(lib.chargeRates?.installation),
+    transport: U.num(lib.chargeRates?.transport),
+    loading: U.num(lib.chargeRates?.loading),
     other: 0,
-    otherLabel: 'Other charges',
-    gstPct: 0,
-    gstLabel: 'GST',
+    otherLabel: lib.chargeRates?.otherLabel || 'Other charges',
+    gstPct: U.num(lib.chargeRates?.gstPct),
+    gstLabel: lib.chargeRates?.gstLabel || 'GST',
     roundOff: true,
   },
   terms: CAT.defaultTerms(),
@@ -173,9 +175,14 @@ export function load() {
   }
 }
 
+/**
+ * Starts a fresh quotation on the CURRENT library — your profiles, rates and
+ * charge defaults are yours and survive this. Restoring the built-in library
+ * is a separate, explicit action in Masters.
+ */
 export function reset() {
-  state.lib = defaultLibrary();
   state.doc = defaultDoc(state.lib);
+  state.doc.items = state.doc.items.map((i) => normaliseItem(i, state.lib));
   state.ui.selected = state.doc.items[0].id;
   emit();
 }
@@ -190,6 +197,7 @@ function migrateLib(lib) {
     if (!Array.isArray(out[k]) || !out[k].length) out[k] = d[k];
   }
   out.lock = { hash: '', unlocked: true, ...(lib.lock || {}) };
+  out.chargeRates = { ...CAT.defaultChargeRates(), ...(lib.chargeRates || {}) };
   // series saved before profile sections existed default to flat-rate costing
   out.series = out.series.map((s) => ({
     costing: 'sqft', labourPerSqft: 0, sections: {}, ...s,
@@ -203,6 +211,8 @@ function migrateDoc(doc, lib) {
   out.company = { ...d.company, ...(doc.company || {}) };
   out.customer = { ...d.customer, ...(doc.customer || {}) };
   out.charges = { ...d.charges, ...(doc.charges || {}) };
+  // labour was briefly a lump sum; it is a rate per sq.ft now
+  if (out.charges.labour !== undefined) delete out.charges.labour;
   out.terms = doc.terms?.length ? doc.terms : d.terms;
   out.items = (doc.items || []).map((it) => normaliseItem(it, lib));
   if (!out.items.length) out.items = [emptyItem(lib, 1)];

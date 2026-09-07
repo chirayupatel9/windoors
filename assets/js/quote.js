@@ -69,7 +69,10 @@ function chargesBar(repaginate) {
       el('div', { class: 'charges-fields' },
         UI.field('Discount %', UI.numInput(doc.charges.discountPct,
           (v) => set({ discountPct: U.clamp(U.num(v), 0, 100) }), { class: 'inp num sm', step: 0.5, min: 0, max: 100 })),
-        money(doc.charges.labourLabel || 'Labour ₹', 'labour'),
+        UI.field(`${doc.charges.labourLabel || 'Labour'} ₹/sq.ft`,
+          UI.numInput(doc.charges.labourPerSqft, (v) => set({ labourPerSqft: U.num(v) }),
+            { class: 'inp num sm', step: 5, min: 0 }),
+          t.labour ? `= ₹ ${U.inr(t.labour)}` : null),
         money('Installation ₹', 'installation'),
         money('Transport ₹', 'transport'),
         money('Loading ₹', 'loading'),
@@ -295,7 +298,10 @@ function totalsRow(q, doc) {
     ['Basic Value', `INR ${U.inr(q.basic)}`],
   ];
   if (q.discount) rows.push([`Discount (${U.num(q.discountPct)}%)`, `- INR ${U.inr(q.discount)}`]);
-  if (q.labour) rows.push([c.labourLabel || 'Labour charges', `INR ${U.inr(q.labour)}`]);
+  if (q.labour) {
+    rows.push([`${c.labourLabel || 'Labour charges'} @ INR ${U.inr(q.labourRate)} / Sq.Ft.`,
+      `INR ${U.inr(q.labour)}`]);
+  }
   if (q.installation) rows.push(['Installation', `INR ${U.inr(q.installation)}`]);
   if (q.transport) rows.push(['Transportation Cost', `INR ${U.inr(q.transport)}`]);
   if (q.loading) rows.push(['Loading And Unloading', `INR ${U.inr(q.loading)}`]);

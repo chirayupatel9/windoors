@@ -161,6 +161,27 @@ export const defaultHardware = () => [
   { id: 'hw_premium', name: 'Premium hardware upgrade (HIVIK)', per: 'item', rate: 0 },
 ];
 
+/*
+ * Defaults a new quotation starts from. These are rates, not amounts — the
+ * quotation keeps its own copy once created, so changing a default here never
+ * silently reprices a quote you have already sent.
+ *
+ * Site labour is separate from the fabrication labour on a series: that one is
+ * inside the item price when a series is costed by weight, this one is charged
+ * across the whole job.
+ */
+export const defaultChargeRates = () => ({
+  labourPerSqft: 45,
+  labourLabel: 'Labour charges',
+  transport: 0,
+  loading: 0,
+  installation: 0,
+  otherLabel: 'Other charges',
+  gstPct: 18,
+  gstLabel: 'GST',
+  discountPct: 0,
+});
+
 export const HANDLE_COLOURS = ['BLACK', 'SILVER', 'WHITE', 'CHAMPAGNE', 'ROSE GOLD'];
 export const LOCKING = ['Multi-point', 'Touch lock', 'Single point', 'Mortise lock', '—'];
 
