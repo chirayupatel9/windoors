@@ -46,6 +46,7 @@
   --sheet-text:  #23272d;
   --sheet-text-2:#5d646e;
   --quote-bg:    #d9dade;
+  --picker-filter: none;
   --shadow: 0 14px 34px rgba(20, 22, 26, .14);
 
   /* type */
@@ -93,6 +94,7 @@
     --accent-hover:#dcae51;
     --danger-soft: #33211f;
     --quote-bg:    #2a2d33;
+    --picker-filter: invert(1) hue-rotate(180deg);
     --shadow: 0 14px 34px rgba(0, 0, 0, .45);
     color-scheme: dark;
   }
@@ -116,6 +118,7 @@
   --accent-hover:#dcae51;
   --danger-soft: #33211f;
   --quote-bg:    #2a2d33;
+  --picker-filter: invert(1) hue-rotate(180deg);
   --shadow: 0 14px 34px rgba(0, 0, 0, .45);
   color-scheme: dark;
 }
@@ -608,4 +611,98 @@ body.dragging-y, body.dragging-y * { cursor: ns-resize !important; user-select: 
 @media (pointer: coarse) {
   /* fingers need a wider grab than a 10px band */
   .preview-canvas .grip { stroke: transparent; stroke-width: 16; }
+}
+
+/* ---------------- native controls follow the theme ----------------
+ * A select's popup list, a file button and the date picker are drawn by the
+ * browser, not by us. color-scheme alone is not enough once an author
+ * background is set, so each one is given explicit token colours.
+ */
+
+select.inp { color-scheme: inherit; }
+
+select.inp option,
+select.inp optgroup {
+  background-color: var(--surface);
+  color: var(--text);
+}
+select.inp optgroup {
+  font-family: var(--body);
+  font-weight: 600;
+  color: var(--text-3);
+}
+select.inp option:checked,
+select.inp option:hover {
+  background-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+input[type="file"].inp {
+  padding: 4px 6px;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+input[type="file"].inp::file-selector-button {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  padding: 5px 10px;
+  margin-right: var(--s2);
+  font: 500 var(--fs-sm)/1 var(--body);
+  cursor: pointer;
+}
+input[type="file"].inp::file-selector-button:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+input[type="date"].inp::-webkit-calendar-picker-indicator {
+  filter: var(--picker-filter);
+  cursor: pointer;
+  opacity: .75;
+}
+input[type="date"].inp::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+/* number spinners are noise next to a millimetre field */
+.inp.num::-webkit-outer-spin-button,
+.inp.num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.inp.num { -moz-appearance: textfield; appearance: textfield; }
+
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 6px; border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); background-clip: padding-box; }
+
+/* ---------------- charges bar on the quotation ---------------- */
+
+.quote-view { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+
+.chargesbar {
+  flex: none; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding: var(--s3) var(--s4); display: flex; flex-direction: column; gap: var(--s2);
+  position: sticky; top: 0; z-index: 20;
+}
+.chargesbar-head { display: flex; align-items: center; gap: var(--s2); }
+.charges { display: flex; align-items: flex-end; gap: var(--s4); flex-wrap: wrap; }
+.charges-fields {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: var(--s2) var(--s3); flex: 1; min-width: 0;
+}
+.charges-total {
+  display: flex; align-items: baseline; gap: var(--s4); flex-wrap: wrap;
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-sm); color: var(--text-3);
+  padding-left: var(--s4); border-left: 1px solid var(--line);
+}
+.charges-total strong { color: var(--accent); font-size: var(--fs-md); font-weight: 600; }
+
+.quote-view .quote-wrap { flex: 1; overflow: auto; min-height: 0; }
+
+@media (max-width: 768px) {
+  .chargesbar { padding: var(--s2) var(--s3); position: static; }
+  .charges { gap: var(--s2); }
+  .charges-total { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); padding-top: var(--s2); width: 100%; }
+  .quote-view .quote-wrap { padding: var(--s3); }
 }

@@ -105,10 +105,13 @@ table.tot tr.grand td { font-weight: 700; border-top: .6pt solid #000; padding-t
 @media print {
   html, body { height: auto; overflow: visible; background: #fff; }
   body { display: block; }
-  .topbar, .itemlist, .editor, .setup, .library, .toast, .modal-back, .boot { display: none !important; }
+  .topbar, .itemlist, .editor, .setup, .library, .toast, .modal-back, .boot,
+  .chargesbar { display: none !important; }
   .mount { overflow: visible; height: auto; }
-  .quote-wrap { padding: 0; background: #fff; display: block; }
-  .sheet { display: block; gap: 0; }
+  .quote-view { display: block; height: auto; }
+  .quote-wrap { padding: 0; background: #fff; display: block; overflow: visible; }
+  /* the on-screen fit-to-width must never reach paper */
+  .sheet { display: block; gap: 0; zoom: 1 !important; }
   .page {
     box-shadow: none;
     margin: 0;

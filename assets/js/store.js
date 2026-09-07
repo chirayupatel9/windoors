@@ -101,6 +101,8 @@ export const defaultDoc = (lib) => ({
   items: starterItems(lib),
   charges: {
     discountPct: 0,
+    labour: 0,
+    labourLabel: 'Labour charges',
     installation: 0,
     transport: 0,
     loading: 0,

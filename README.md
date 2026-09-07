@@ -102,6 +102,12 @@ customer, charges and the terms & conditions text.
 
 ## Keyboard
 
+The charges that get settled last — labour, cartage, the discount agreed on the
+phone, GST — sit on the Quotation tab itself, so they can be adjusted while
+watching the total rather than in a separate screen. On a phone the A4 sheet
+scales to the screen width, the way a print preview does; what prints is
+unaffected.
+
 Light and dark both ship. The theme button in the top bar cycles
 **follows your device → light → dark**, and the choice is remembered per
 browser. The drawing sheet stays paper-white in both, because that is what

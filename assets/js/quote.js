@@ -3,6 +3,7 @@
 
 import * as U from './util.js';
 import * as S from './store.js';
+import * as UI from './ui.js';
 import { drawSVG } from './draw.js';
 import { priceQuote } from './pricing.js';
 import { describe, solve, glazingGroups, meshGroups, seriesFor, cutList, metalSummary } from './geometry.js';
@@ -11,12 +12,83 @@ import { ALL_FN } from './catalog.js';
 const { el } = U;
 
 export function renderQuoteTab(root) {
-  const wrap = el('div', { class: 'quote-wrap' });
   const sheet = el('div', { class: 'sheet', id: 'sheet' });
-  wrap.append(sheet);
-  root.replaceChildren(wrap);
-  // paginate after layout so measurements are real
-  requestAnimationFrame(() => buildPages(sheet, S.state.doc, S.state.lib));
+  const wrap = el('div', { class: 'quote-wrap' }, sheet);
+  const repaginate = () => buildPages(sheet, S.state.doc, S.state.lib);
+
+  root.replaceChildren(el('div', { class: 'quote-view' }, chargesBar(repaginate), wrap));
+  // paginate after layout so measurements are real, then fit the sheet
+  requestAnimationFrame(() => { repaginate(); fitSheet(wrap, sheet); });
+
+  const onResize = U.debounce(() => fitSheet(wrap, sheet), 120);
+  window.addEventListener('resize', onResize);
+  // the tab swap replaces this subtree; drop the listener with it
+  new MutationObserver((_, mo) => {
+    if (!document.contains(wrap)) { window.removeEventListener('resize', onResize); mo.disconnect(); }
+  }).observe(root, { childList: true });
+}
+
+/*
+ * An A4 page is 210mm wide and a phone is not. Rather than crop the sheet or
+ * make the reader scroll sideways through it, scale the whole page down to the
+ * width available — the same thing a print preview does. `zoom` is used rather
+ * than a transform because it takes part in layout, so the scrolling column
+ * still ends where the pages end.
+ */
+const A4_PX = 794;   // 210mm at 96dpi
+
+function fitSheet(wrap, sheet) {
+  const style = getComputedStyle(wrap);
+  const pad = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+  const room = wrap.clientWidth - pad;
+  sheet.style.zoom = room >= A4_PX ? '' : String(U.clamp(room / A4_PX, 0.25, 1));
+}
+
+/*
+ * The charges that get settled at the last minute — labour, cartage, the
+ * discount you agree on the phone — sit on the quotation itself, so they can
+ * be adjusted while looking at the total instead of in a separate tab.
+ * They write to the same document as the Setup tab.
+ */
+function chargesBar(repaginate) {
+  const doc = S.state.doc;
+  const q = priceQuote(doc, S.state.lib);
+
+  // charges do not change pagination, so repaint the totals in place and
+  // leave the pages alone unless a line appears or disappears
+  const bump = () => { S.save(); requestAnimationFrame(repaginate); render(); };
+  const set = (patch) => { Object.assign(doc.charges, patch); bump(); };
+
+  const money = (label, key, step = 500) => UI.field(label,
+    UI.numInput(doc.charges[key], (v) => set({ [key]: U.num(v) }), { class: 'inp num sm', step }));
+
+  const box = el('div', { class: 'charges' });
+  const render = () => {
+    const t = priceQuote(doc, S.state.lib);
+    box.replaceChildren(
+      el('div', { class: 'charges-fields' },
+        UI.field('Discount %', UI.numInput(doc.charges.discountPct,
+          (v) => set({ discountPct: U.clamp(U.num(v), 0, 100) }), { class: 'inp num sm', step: 0.5, min: 0, max: 100 })),
+        money(doc.charges.labourLabel || 'Labour ₹', 'labour'),
+        money('Installation ₹', 'installation'),
+        money('Transport ₹', 'transport'),
+        money('Loading ₹', 'loading'),
+        money(doc.charges.otherLabel || 'Other ₹', 'other'),
+        UI.field('GST %', UI.numInput(doc.charges.gstPct,
+          (v) => set({ gstPct: U.clamp(U.num(v), 0, 50) }), { class: 'inp num sm', step: 1, min: 0, max: 50 }))),
+      el('div', { class: 'charges-total' },
+        el('span', {}, `Basic ₹ ${U.inr(t.basic)}`),
+        t.gst ? el('span', {}, `${doc.charges.gstLabel || 'GST'} ₹ ${U.inr(t.gst)}`) : null,
+        el('strong', {}, `Total ₹ ${U.inr(t.grand)}`)));
+  };
+  render();
+
+  return el('div', { class: 'chargesbar' },
+    el('div', { class: 'chargesbar-head' },
+      el('span', { class: 'field-label' }, 'Charges — adjust before printing'),
+      el('span', { class: 'spacer' }),
+      UI.button('More in Setup', () => { location.hash = 'setup'; }, { class: 'btn sm' })),
+    box);
 }
 
 /** Renders the whole document into `host` as A4 pages. */
@@ -223,6 +295,7 @@ function totalsRow(q, doc) {
     ['Basic Value', `INR ${U.inr(q.basic)}`],
   ];
   if (q.discount) rows.push([`Discount (${U.num(q.discountPct)}%)`, `- INR ${U.inr(q.discount)}`]);
+  if (q.labour) rows.push([c.labourLabel || 'Labour charges', `INR ${U.inr(q.labour)}`]);
   if (q.installation) rows.push(['Installation', `INR ${U.inr(q.installation)}`]);
   if (q.transport) rows.push(['Transportation Cost', `INR ${U.inr(q.transport)}`]);
   if (q.loading) rows.push(['Loading And Unloading', `INR ${U.inr(q.loading)}`]);
