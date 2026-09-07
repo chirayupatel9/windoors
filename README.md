@@ -118,6 +118,14 @@ apart.
 
 ## Deployment
 
-`.github/workflows/pages.yml` publishes the repository to GitHub Pages on every
-push. If Pages has not been switched on yet, do it once in
-**Settings → Pages → Build and deployment → Source: GitHub Actions**.
+GitHub Pages has to be switched on once by hand — the Actions token is not
+allowed to create the site itself. In **Settings → Pages → Build and
+deployment**, either source works because the app is plain static files:
+
+- **Deploy from a branch** → `claude/aluminum-quotation-generator-me6bju`,
+  folder `/ (root)`. Live about a minute after you save; nothing else to do.
+- **GitHub Actions** → then re-run the *Deploy to GitHub Pages* workflow.
+  `.github/workflows/pages.yml` publishes on every push after that.
+
+The workflow is written so that it stays green and simply does nothing while
+Pages is off or set to branch mode.

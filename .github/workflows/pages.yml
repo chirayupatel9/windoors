@@ -25,19 +25,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # enablement: turns Pages on for the repo the first time this runs,
-      # so no manual settings change is needed.
+      # Pages has to be switched on for the repository once, by hand, under
+      # Settings -> Pages. The Actions token is not allowed to create the site
+      # itself, and if Pages is set to "Deploy from a branch" this step has
+      # nothing to do — so it must not fail the run in either case.
       - name: Configure Pages
+        id: pages
+        continue-on-error: true
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
+
+      - name: Pages not set to GitHub Actions
+        if: steps.pages.outcome != 'success'
+        run: |
+          echo "::notice title=Nothing to deploy::Pages is not configured to build from GitHub Actions for this repository."
+          echo "The site is plain static files, so either source works:"
+          echo "  Settings -> Pages -> Deploy from a branch -> ${{ github.ref_name }} / (root)   — serves the repo directly"
+          echo "  Settings -> Pages -> GitHub Actions                                            — then re-run this workflow"
 
       # The app is plain ES modules and CSS — Pages serves the repo as-is.
       - name: Upload site
+        if: steps.pages.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
           path: .
 
       - name: Deploy
         id: deploy
+        if: steps.pages.outcome == 'success'
         uses: actions/deploy-pages@v4
