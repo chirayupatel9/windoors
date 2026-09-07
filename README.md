@@ -64,6 +64,25 @@ list** CSV for the factory — every cut length by mark, plus metres, kilos and
 bars to order per profile. The cutting list is shop paperwork and never appears
 on the customer's quotation.
 
+## Customers and quotations
+
+Every quotation is addressed to a customer from the **Customers** master, and
+the app keeps them all. The button in the top bar shows which job is open and
+opens the list — grouped by customer, newest work first, with the date, item
+count and value of each, so you find a job the way you remember it ("that one
+for Nirmal in August") rather than by number. From there you can open an old
+quotation, copy it as a revision, start a new one, or delete it. Quote numbers
+run from a prefix and counter kept in Masters.
+
+Editing a customer updates the address on all of their quotations, so a
+corrected phone number is fixed once rather than job by job. Removing a
+customer keeps their quotations — they are simply no longer addressed to
+anyone.
+
+> Everything lives in this browser. A job file (Export → Save job file) carries
+> every quotation and the whole master library, and is the way to move work to
+> another machine or keep a backup.
+
 ## Masters
 
 Open **Masters** and edit in place — nothing is hard-coded:
@@ -76,6 +95,7 @@ Open **Masters** and edit in place — nothing is hard-coded:
 | Mesh | Mesh types and rate per sq.ft |
 | Profile colours | Name, brand, extra per sq.ft, and the swatch the drawing paints aluminium with |
 | Hardware | Charged per leaf, per window or per sq.ft |
+| Customers | Name, address, contact, GSTIN and site — who a quotation is addressed to |
 | Charge defaults | Labour ₹/sq.ft, discount, installation, transport, loading and tax that a new quotation starts from |
 
 A quotation takes its own copy of the charge defaults when it is created, so

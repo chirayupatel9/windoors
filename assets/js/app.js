@@ -44,6 +44,8 @@ function topbar(st) {
       el('span', { class: 'brand-name' }, 'WinDoors'),
       el('span', { class: 'brand-sub' }, 'Quotation Studio')),
 
+    quoteSwitcher(st),
+
     el('nav', { class: 'tabs' },
       ...TABS.map((t) => el('button', {
         type: 'button',
@@ -76,10 +78,84 @@ function topbar(st) {
             if (it) X.exportItemSVG(it); else UI.toast('Select an item first', 'err');
           }),
           el('hr', {}),
-          menuItem('Start a new quotation', () => UI.confirmDialog(
-            'Clear this quotation and start again? Your library is kept.',
-            () => { S.reset(); go('items'); UI.toast('New quotation started'); }, 'Start new')))))
+          menuItem('Quotations…', openQuoteBrowser),
+          menuItem('New quotation', () => {
+            S.newQuote(S.state.doc?.customerId || null);
+            go('items');
+            UI.toast('New quotation started');
+          }))))
   ];
+}
+
+/* Which job is open, and the way into all the others. */
+function quoteSwitcher(st) {
+  const doc = st.doc;
+  const cust = S.customerOf(doc);
+  const b = UI.button('', openQuoteBrowser, { class: 'btn quoteswitch', title: 'Open another quotation' });
+  b.append(
+    el('span', { class: 'qs-text' },
+      el('strong', {}, doc?.quoteNo || '—'),
+      el('span', {}, cust?.name?.trim() || 'No customer')),
+    el('span', { class: 'btn-icon caret', html: ICON.chevron }));
+  return b;
+}
+
+/*
+ * Every quotation, grouped under the customer it is addressed to — which is
+ * how they are remembered ("that job for Nirmal in August"), not by number.
+ */
+function openQuoteBrowser() {
+  const st = S.state;
+  const body = el('div', { class: 'quotelist' });
+
+  const groups = new Map();
+  for (const q of st.quotes) {
+    const key = q.customerId || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(q);
+  }
+  // customers with the most recent work first
+  const latest = (list) => Math.max(...list.map((q) => Date.parse(q.createdAt) || 0));
+  const ordered = [...groups.entries()].sort((a, b) => latest(b[1]) - latest(a[1]));
+
+  for (const [cid, list] of ordered) {
+    const cust = S.findCustomer(cid);
+    const value = list.reduce((a, q) => a + priceQuote(q, st.lib).grand, 0);
+    body.append(el('h4', { class: 'quotelist-group' },
+      el('span', {}, cust?.name?.trim() || 'Not addressed to a customer'),
+      el('span', { class: 'quotelist-sum' },
+        `${list.length} quotation${list.length > 1 ? 's' : ''} · ₹ ${U.inr(value, 0)}`)));
+
+    for (const q of list.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''))) {
+      const t = priceQuote(q, st.lib);
+      const open = q.id === st.currentId;
+      body.append(el('div', { class: 'quoterow' + (open ? ' open' : '') },
+        el('button', {
+          type: 'button', class: 'quoterow-main',
+          onclick: () => { close(); S.openQuote(q.id); },
+        },
+          el('span', { class: 'quoterow-no' }, q.quoteNo || '—'),
+          el('span', { class: 'quoterow-meta' },
+            `${U.fmtDate(q.date)} · ${t.totalQty} nos · ${U.round(t.totalSqft, 1)} sq.ft`),
+          el('span', { class: 'quoterow-val' }, '₹ ' + U.inr(t.grand, 0)),
+          open ? el('span', { class: 'quoterow-open' }, 'open') : null),
+        UI.iconBtn(ICON.copy, 'Duplicate this quotation',
+          () => { close(); S.duplicateQuote(q.id); UI.toast('Copied — new number assigned'); }),
+        UI.iconBtn(ICON.trash, 'Delete this quotation', () => UI.confirmDialog(
+          `Delete ${q.quoteNo}? This cannot be undone.`,
+          () => { close(); S.removeQuote(q.id); UI.toast('Quotation deleted'); }),
+          { class: 'ibtn danger' })));
+    }
+  }
+
+  const close = UI.modal('Quotations', body, [
+    { label: '+ New quotation', class: 'btn primary', onClick: (done) => {
+      done();
+      S.newQuote(S.state.doc?.customerId || null);
+      go('items');
+      UI.toast('New quotation started');
+    } },
+  ]);
 }
 
 /* system / light / dark, cycled in that order; the icon shows what is on. */
@@ -148,6 +224,8 @@ export function start() {
   bar = $('#topbar');
   bindGlobalEvents();
   X.primeDownloads();   // resolve the save path before anyone clicks Export
+  S.setSaveErrorHandler(() => UI.toast(
+    'This browser will not store any more quotations — save a job file to keep your work', 'err'));
 
   const restored = S.load();
   S.applyTheme();

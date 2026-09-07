@@ -6,6 +6,11 @@ import * as CAT from './catalog.js';
 
 const KEY = 'windoors.v1';
 
+let quotaWarned = false;
+let onSaveError = () => {};
+/** The UI supplies a way to tell the user that saving stopped working. */
+export const setSaveErrorHandler = (fn) => { onSaveError = fn; };
+
 export const emptyItem = (lib, n = 1) => ({
   id: U.uid('it'),
   label: `W${n}`,
@@ -30,6 +35,9 @@ export const emptyItem = (lib, n = 1) => ({
 });
 
 export const defaultLibrary = () => ({
+  customers: [],
+  quotePrefix: 'QT-',
+  quoteNext: 1,
   profiles: CAT.defaultProfiles(),
   series: CAT.defaultSeries(),
   glass: CAT.defaultGlass(),
@@ -38,6 +46,28 @@ export const defaultLibrary = () => ({
   hardware: CAT.defaultHardware(),
   chargeRates: CAT.defaultChargeRates(),
   lock: { hash: '', unlocked: true },
+});
+
+/**
+ * The next quote number, from the prefix and running count held in Masters.
+ * Reading it does not consume it — `newQuote()` does that, so a preview of the
+ * number never burns one.
+ */
+export function nextQuoteNo(lib) {
+  const prefix = lib?.quotePrefix ?? 'QT-';
+  const n = Math.max(1, Math.round(U.num(lib?.quoteNext, 1)));
+  return prefix + String(n).padStart(5, '0');
+}
+
+export const emptyCustomer = () => ({
+  id: U.uid('cus'),
+  name: '',
+  address: '',
+  phone: '',
+  email: '',
+  gstin: '',
+  site: '',
+  note: '',
 });
 
 export const defaultCompany = () => ({
@@ -94,10 +124,14 @@ export function starterItems(lib) {
 }
 
 export const defaultDoc = (lib) => ({
+  id: U.uid('q'),
+  createdAt: new Date().toISOString(),
   company: defaultCompany(),
-  quoteNo: 'QT-00001',
+  quoteNo: nextQuoteNo(lib),
   date: U.todayISO(),
   salesPerson: '',
+  customerId: null,
+  // kept for quotations made before customers existed, and as a fallback
   customer: { name: '', address: '', phone: '', email: '', site: '' },
   items: starterItems(lib),
   // seeded from the library so a new quote starts on your standard rates
@@ -126,10 +160,32 @@ const listeners = new Set();
 
 export const state = {
   lib: defaultLibrary(),
-  doc: null,
+  quotes: [],
+  currentId: null,
   ui: { tab: 'items', selected: null, section: 0, cell: 0, theme: 'system' },
 };
-state.doc = defaultDoc(state.lib);
+
+/*
+ * Everything downstream reads `state.doc` — the quotation being worked on.
+ * Keeping it a live view of `quotes[currentId]` means switching customers or
+ * opening an older job needs no changes anywhere else.
+ */
+Object.defineProperty(state, 'doc', {
+  enumerable: true,
+  get() {
+    return state.quotes.find((q) => q.id === state.currentId) || state.quotes[0] || null;
+  },
+  set(next) {
+    const at = state.quotes.findIndex((q) => q.id === state.currentId);
+    if (at >= 0) state.quotes[at] = next;
+    else state.quotes.push(next);
+    state.currentId = next.id;
+  },
+});
+
+state.quotes = [defaultDoc(state.lib)];
+state.lib.quoteNext += 1;   // the opening quotation consumes its number too
+state.currentId = state.quotes[0].id;
 state.doc.items = state.doc.items.map((i) => normaliseItem(i, state.lib));
 state.ui.selected = state.doc.items[0].id;
 
@@ -156,8 +212,18 @@ export function update(fn) {
 
 export function save() {
   try {
-    localStorage.setItem(KEY, JSON.stringify({ v: 1, lib: state.lib, doc: state.doc, theme: state.ui.theme }));
-  } catch (e) { /* private mode / quota — the app still works in memory */ }
+    localStorage.setItem(KEY, JSON.stringify({
+      v: 2, lib: state.lib, quotes: state.quotes, currentId: state.currentId, theme: state.ui.theme,
+    }));
+    quotaWarned = false;
+  } catch (e) {
+    // private mode, or the browser's storage is full. The app keeps working in
+    // memory, but the user needs to know their work is no longer being kept.
+    if (!quotaWarned) {
+      quotaWarned = true;
+      onSaveError(e);
+    }
+  }
 }
 
 export function load() {
@@ -165,9 +231,13 @@ export function load() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return false;
     const data = JSON.parse(raw);
-    if (!data?.doc) return false;
+    const saved = data?.quotes?.length ? data.quotes : (data?.doc ? [data.doc] : null);
+    if (!saved) return false;
     state.lib = migrateLib(data.lib);
-    state.doc = migrateDoc(data.doc, state.lib);
+    state.quotes = saved.map((q) => migrateDoc(q, state.lib));
+    adoptLooseCustomers();
+    state.currentId = state.quotes.some((q) => q.id === data.currentId)
+      ? data.currentId : state.quotes[0].id;
     if (['light', 'dark', 'system'].includes(data.theme)) state.ui.theme = data.theme;
     return true;
   } catch (e) {
@@ -180,11 +250,9 @@ export function load() {
  * charge defaults are yours and survive this. Restoring the built-in library
  * is a separate, explicit action in Masters.
  */
+/** Starts a fresh quotation on the CURRENT masters, keeping the ones already made. */
 export function reset() {
-  state.doc = defaultDoc(state.lib);
-  state.doc.items = state.doc.items.map((i) => normaliseItem(i, state.lib));
-  state.ui.selected = state.doc.items[0].id;
-  emit();
+  newQuote(state.doc?.customerId || null);
 }
 
 /** Fills in anything a newer build added, so old saves keep working. */
@@ -198,6 +266,9 @@ function migrateLib(lib) {
   }
   out.lock = { hash: '', unlocked: true, ...(lib.lock || {}) };
   out.chargeRates = { ...CAT.defaultChargeRates(), ...(lib.chargeRates || {}) };
+  out.customers = Array.isArray(lib.customers) ? lib.customers : [];
+  out.quotePrefix = lib.quotePrefix ?? 'QT-';
+  out.quoteNext = U.num(lib.quoteNext, 1);
   // series saved before profile sections existed default to flat-rate costing
   out.series = out.series.map((s) => ({
     costing: 'sqft', labourPerSqft: 0, sections: {}, ...s,
@@ -208,6 +279,9 @@ function migrateLib(lib) {
 function migrateDoc(doc, lib) {
   const d = defaultDoc(lib);
   const out = { ...d, ...doc };
+  out.id = doc.id || U.uid('q');
+  out.createdAt = doc.createdAt || new Date().toISOString();
+  if (out.customerId === undefined) out.customerId = null;
   out.company = { ...d.company, ...(doc.company || {}) };
   out.customer = { ...d.customer, ...(doc.customer || {}) };
   out.charges = { ...d.charges, ...(doc.charges || {}) };
@@ -306,14 +380,21 @@ export function moveItem(id, dir) {
 /* ---- import / export ------------------------------------------------- */
 
 export function toJSON() {
-  return JSON.stringify({ v: 1, exported: new Date().toISOString(), lib: state.lib, doc: state.doc }, null, 2);
+  return JSON.stringify({
+    v: 2, exported: new Date().toISOString(),
+    lib: state.lib, quotes: state.quotes, currentId: state.currentId,
+  }, null, 2);
 }
 
 export function fromJSON(text) {
   const data = JSON.parse(text);
-  if (!data?.doc) throw new Error('Not a WinDoors quotation file.');
+  const saved = data?.quotes?.length ? data.quotes : (data?.doc ? [data.doc] : null);
+  if (!saved) throw new Error('Not a WinDoors quotation file.');
   state.lib = migrateLib(data.lib);
-  state.doc = migrateDoc(data.doc, state.lib);
+  state.quotes = saved.map((q) => migrateDoc(q, state.lib));
+  adoptLooseCustomers();
+  state.currentId = state.quotes.some((q) => q.id === data.currentId)
+    ? data.currentId : state.quotes[0].id;
   state.ui.selected = state.doc.items[0]?.id || null;
   emit();
 }
@@ -394,4 +475,123 @@ export function resolvedTheme() {
   const stamped = document.documentElement.dataset.theme;
   if (stamped === 'light' || stamped === 'dark') return stamped;
   return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+
+/* --------------------------------------------------------------------
+ * Customers
+ * ------------------------------------------------------------------ */
+
+export const findCustomer = (id) => state.lib.customers.find((c) => c.id === id) || null;
+
+/** The customer a quotation is addressed to, falling back to typed-in details. */
+export function customerOf(doc) {
+  return findCustomer(doc?.customerId) || doc?.customer || null;
+}
+
+export function addCustomer(fields = {}) {
+  const c = { ...emptyCustomer(), ...fields, id: U.uid('cus') };
+  state.lib.customers.push(c);
+  emit();
+  return c;
+}
+
+export function removeCustomer(id) {
+  const at = state.lib.customers.findIndex((c) => c.id === id);
+  if (at < 0) return;
+  state.lib.customers.splice(at, 1);
+  // quotations keep the details they were addressed to rather than going blank
+  for (const q of state.quotes) {
+    if (q.customerId !== id) continue;
+    q.customerId = null;
+  }
+  emit();
+}
+
+/** How many quotations are addressed to this customer. */
+export const quotesFor = (id) => state.quotes.filter((q) => q.customerId === id);
+
+/*
+ * Quotations made before customers existed carry typed-in details. Turn each
+ * distinct name into a real customer so the whole history groups properly.
+ */
+function adoptLooseCustomers() {
+  for (const q of state.quotes) {
+    if (q.customerId || !q.customer?.name?.trim()) continue;
+    const name = q.customer.name.trim();
+    let c = state.lib.customers.find((x) => x.name.trim().toLowerCase() === name.toLowerCase());
+    if (!c) {
+      c = { ...emptyCustomer(), id: U.uid('cus'), name,
+        address: q.customer.address || '', phone: q.customer.phone || '',
+        email: q.customer.email || '', site: q.customer.site || '' };
+      state.lib.customers.push(c);
+    }
+    q.customerId = c.id;
+  }
+}
+
+/* --------------------------------------------------------------------
+ * Quotations
+ * ------------------------------------------------------------------ */
+
+export const currentQuote = () => state.doc;
+
+/** Starts a new quotation on the current masters, optionally for a customer. */
+export function newQuote(customerId = null) {
+  const q = defaultDoc(state.lib);
+  q.customerId = customerId;
+  q.items = q.items.map((i) => normaliseItem(i, state.lib));
+  state.lib.quoteNext = Math.max(1, Math.round(U.num(state.lib.quoteNext, 1))) + 1;
+  state.quotes.push(q);
+  openQuote(q.id);
+  return q;
+}
+
+export function openQuote(id) {
+  if (!state.quotes.some((q) => q.id === id)) return;
+  state.currentId = id;
+  state.ui.selected = state.doc.items[0]?.id || null;
+  state.ui.section = 0;
+  state.ui.cell = 0;
+  emit();
+}
+
+/** Copies a quotation — the usual way to quote a revision or a similar job. */
+export function duplicateQuote(id, customerId) {
+  const src = state.quotes.find((q) => q.id === id);
+  if (!src) return null;
+  const copy = U.clone(src);
+  copy.id = U.uid('q');
+  copy.createdAt = new Date().toISOString();
+  copy.date = U.todayISO();
+  copy.quoteNo = nextQuoteNo(state.lib);
+  state.lib.quoteNext = Math.max(1, Math.round(U.num(state.lib.quoteNext, 1))) + 1;
+  if (customerId !== undefined) copy.customerId = customerId;
+  copy.items.forEach((it) => {
+    it.id = U.uid('it');
+    it.sections.forEach((sec) => {
+      sec.id = U.uid('sec');
+      (sec.cells || []).forEach((c) => (c.id = U.uid('c')));
+      (sec.panels || []).forEach((pn) => (pn.id = U.uid('p')));
+    });
+  });
+  const at = state.quotes.findIndex((q) => q.id === id);
+  state.quotes.splice(at + 1, 0, copy);
+  openQuote(copy.id);
+  return copy;
+}
+
+export function removeQuote(id) {
+  const at = state.quotes.findIndex((q) => q.id === id);
+  if (at < 0) return;
+  state.quotes.splice(at, 1);
+  if (!state.quotes.length) {
+    const q = defaultDoc(state.lib);
+    q.items = q.items.map((i) => normaliseItem(i, state.lib));
+    state.quotes.push(q);
+  }
+  const next = state.quotes[Math.min(at, state.quotes.length - 1)];
+  state.currentId = next.id;
+  state.ui.selected = next.items[0]?.id || null;
+  emit();
 }

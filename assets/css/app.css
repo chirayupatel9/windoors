@@ -497,6 +497,15 @@ details.metal table.mini td { font-size: var(--fs-xs); }
   .preview-legend .preview-hint { display: none; }
 }
 
+/* the bar carries one more control now — shed the least useful parts first */
+@media (max-width: 1240px) {
+  .topbar { gap: var(--s3); }
+  .brand-sub { display: none; }
+  .topsum > span { display: none; }        /* keep the running total, drop the rest */
+  .btn.quoteswitch { max-width: 190px; }
+  .qs-text span { max-width: 116px; }
+}
+
 @media (max-width: 1100px) {
   .work { grid-template-columns: 232px minmax(0, 1fr); }
   .editor-top { grid-template-columns: minmax(0, 1fr); }
@@ -763,4 +772,57 @@ input[type="date"].inp::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 
   .sercard-head { flex-wrap: wrap; }
   .sercard-head .inp:first-child { flex: 1 1 100%; }
+}
+
+/* ---------------- which quotation is open ---------------- */
+
+.btn.quoteswitch { max-width: 260px; }
+.qs-text { display: flex; flex-direction: column; align-items: flex-start; gap: 0; min-width: 0; line-height: 1.2; }
+.qs-text strong { font-family: var(--mono); font-size: var(--fs-sm); font-weight: 600; }
+.qs-text span {
+  font-size: var(--fs-2xs); color: var(--text-3);
+  max-width: 168px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.quotelist { display: flex; flex-direction: column; gap: 2px; }
+.quotelist-group {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3);
+  margin: var(--s4) 0 var(--s1); font: 600 var(--fs-base)/1.3 var(--display); letter-spacing: -.01em;
+}
+.quotelist-group:first-child { margin-top: 0; }
+.quotelist-sum { font: 400 var(--fs-xs)/1 var(--mono); color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+.quoterow { display: flex; align-items: stretch; gap: 6px; }
+.quoterow-main {
+  flex: 1; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: var(--s3);
+  background: var(--surface-2); border: 1px solid transparent; border-radius: var(--radius);
+  padding: var(--s2) var(--s3); cursor: pointer; color: inherit; font: inherit; text-align: left; min-width: 0;
+}
+.quoterow-main:hover { border-color: var(--line-2); }
+.quoterow.open .quoterow-main { border-color: var(--accent); box-shadow: inset 2px 0 0 var(--accent); }
+.quoterow-no { font-family: var(--mono); font-weight: 600; font-size: var(--fs-sm); }
+.quoterow-meta { font-size: var(--fs-xs); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quoterow-val { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--accent); font-size: var(--fs-sm); }
+.quoterow-open {
+  font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); border: 1px solid var(--accent); border-radius: 20px; padding: 1px 7px;
+}
+
+.readout {
+  font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--accent);
+  font-size: var(--fs-base); padding: 7px 0;
+}
+.readout-list {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s1) var(--s3);
+  margin: 0; font-size: var(--fs-sm);
+}
+.readout-list dt { color: var(--text-3); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .08em; }
+.readout-list dd { margin: 0; color: var(--text-2); white-space: pre-line; }
+
+@media (max-width: 768px) {
+  .btn.quoteswitch { max-width: none; order: 5; width: 100%; justify-content: space-between; }
+  .qs-text span { max-width: none; }
+  .quoterow-main { grid-template-columns: auto 1fr; row-gap: 2px; }
+  .quoterow-val { grid-column: 2; justify-self: end; }
+  .quoterow-open { grid-column: 1; justify-self: start; }
 }

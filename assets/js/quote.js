@@ -200,14 +200,21 @@ function headerBlock(doc) {
         el('th', {}, 'Quote No.'), el('th', {}, 'Date.'), el('th', {}, 'Sales Person'))),
       el('tbody', {}, el('tr', {},
         el('td', {}, doc.quoteNo || ''), el('td', {}, U.fmtDate(doc.date)), el('td', {}, doc.salesPerson || '')))),
-    el('table', { class: 'q-to' },
-      el('thead', {}, el('tr', {}, el('th', {}, 'To'))),
-      el('tbody', {}, el('tr', {}, el('td', {},
-        el('strong', {}, doc.customer.name || ''),
-        doc.customer.address ? el('div', { class: 'pre' }, doc.customer.address) : null,
-        doc.customer.site ? el('div', {}, `Site : ${doc.customer.site}`) : null,
-        doc.customer.phone ? el('div', {}, `Contact : ${doc.customer.phone}`) : null,
-        doc.customer.email ? el('div', {}, doc.customer.email) : null)))));
+    toBlock(doc));
+}
+
+/** Addressed to the customer on the master, falling back to typed-in details. */
+function toBlock(doc) {
+  const c = S.customerOf(doc) || {};
+  return el('table', { class: 'q-to' },
+    el('thead', {}, el('tr', {}, el('th', {}, 'To'))),
+    el('tbody', {}, el('tr', {}, el('td', {},
+      el('strong', {}, c.name || ''),
+      c.address ? el('div', { class: 'pre' }, c.address) : null,
+      c.site ? el('div', {}, `Site : ${c.site}`) : null,
+      c.phone ? el('div', {}, `Contact : ${c.phone}`) : null,
+      c.email ? el('div', {}, c.email) : null,
+      c.gstin ? el('div', {}, `GSTIN : ${c.gstin}`) : null))));
 }
 
 function quoteTable() {

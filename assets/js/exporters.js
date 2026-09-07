@@ -9,6 +9,13 @@ import { seriesFor, solve, cutList, metalSummary } from './geometry.js';
 
 const safe = (s) => String(s || 'quote').replace(/[^\w.-]+/g, '_').slice(0, 60);
 
+/** "WOL-QT-00012_Mr_Nirmal_Sir" — findable in a folder six months later. */
+function quoteName() {
+  const doc = S.state.doc;
+  const cust = S.customerOf(doc)?.name?.trim();
+  return safe(cust ? `${doc.quoteNo}_${cust}` : doc.quoteNo);
+}
+
 /*
  * Saving a file. Served normally (GitHub Pages, a local server, a file off a
  * USB stick) a plain download link is the whole story. Inside a hosted viewer
@@ -132,7 +139,7 @@ export async function exportAllPNG() {
     ctx.drawImage(im, x, y);
   });
   cv.toBlob(async (b) => {
-    if (b && await download(`${safe(S.state.doc.quoteNo)}_drawings.png`, b)) {
+    if (b && await download(`${quoteName()}_drawings.png`, b)) {
       UI.toast('Contact sheet saved');
     }
   }, 'image/png');
@@ -153,7 +160,7 @@ function loadImage(svg) {
 /* ---- job file ---- */
 
 export async function exportJSON() {
-  const ok = await download(`${safe(S.state.doc.quoteNo)}.windoors.json`,
+  const ok = await download(`${quoteName()}.windoors.json`,
     new Blob([S.toJSON()], { type: 'application/json' }));
   if (ok) UI.toast('Job file saved');
 }
@@ -190,7 +197,7 @@ export async function exportCSV(q) {
   const csv = [head, ...rows]
     .map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
     .join('\r\n');
-  const ok = await download(`${safe(S.state.doc.quoteNo)}.csv`, new Blob(['﻿' + csv], { type: 'text/csv' }));
+  const ok = await download(`${quoteName()}.csv`, new Blob(['﻿' + csv], { type: 'text/csv' }));
   if (ok) UI.toast('CSV saved');
 }
 
@@ -253,7 +260,7 @@ export function exportCutList() {
   const csv = [head, ...rows]
     .map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
     .join('\r\n');
-  return download(`${safe(S.state.doc.quoteNo)}_cutting_list.csv`,
+  return download(`${quoteName()}_cutting_list.csv`,
     new Blob(['\ufeff' + csv], { type: 'text/csv' }))
     .then((ok) => { if (ok) UI.toast('Cutting list saved'); });
 }

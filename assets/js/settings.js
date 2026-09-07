@@ -62,13 +62,7 @@ export function renderSetupTab(root) {
         UI.field('Drawing view label', UI.textInput(doc.viewLabel, (v) => set({ viewLabel: v }), { placeholder: 'View From Inside' })),
         UI.checkbox(doc.showBreakup, 'Show the per-item cost break-up on the quotation', (v) => set({ showBreakup: v }))),
 
-      UI.section('Customer',
-        UI.field('Name', UI.textInput(doc.customer.name, (v) => setCust({ name: v }), { placeholder: 'Mr NIRMAL SIR - VALSAD' })),
-        UI.field('Address', UI.areaInput(doc.customer.address, (v) => setCust({ address: v }), { rows: 3 })),
-        UI.grid(2,
-          UI.field('Contact', UI.textInput(doc.customer.phone, (v) => setCust({ phone: v }))),
-          UI.field('Email', UI.textInput(doc.customer.email, (v) => setCust({ email: v })))),
-        UI.field('Site', UI.textInput(doc.customer.site, (v) => setCust({ site: v })))),
+      customerPicker(doc),
 
       UI.section('Charges & tax',
         UI.grid(2,
@@ -94,6 +88,37 @@ export function renderSetupTab(root) {
           el('tr', {}, el('td', {}, 'Avg. rate / sq.ft'), el('td', { class: 'r' }, '₹ ' + U.inr(q.avgPerSqft))),
           el('tr', {}, el('td', {}, 'Basic value'), el('td', { class: 'r' }, '₹ ' + U.inr(q.basic))),
           el('tr', { class: 'tot' }, el('td', {}, 'Total project cost'), el('td', { class: 'r b' }, '₹ ' + U.inr(q.grand)))))))));
+}
+
+/* The quotation is addressed to a customer from the master, not retyped. */
+function customerPicker(doc) {
+  const lib = S.state.lib;
+  const chosen = S.findCustomer(doc.customerId);
+  const opts = [
+    { value: '', label: lib.customers.length ? '— choose a customer —' : '— no customers yet —' },
+    ...lib.customers.map((c) => ({ value: c.id, label: c.name || '(unnamed)' })),
+  ];
+
+  const details = chosen
+    ? el('dl', { class: 'readout-list' },
+      ...[['Address', chosen.address], ['Contact', chosen.phone], ['Email', chosen.email],
+        ['GSTIN', chosen.gstin], ['Site', chosen.site]]
+        .filter(([, v]) => v)
+        .flatMap(([k, v]) => [el('dt', {}, k), el('dd', {}, v)]))
+    : el('p', { class: 'note' },
+      'Pick a customer, or add one — their details print in the To block and their quotations are listed together.');
+
+  return UI.section('Customer',
+    UI.field('Addressed to',
+      UI.select(doc.customerId || '', opts, (v) => S.update(() => { doc.customerId = v || null; }))),
+    details,
+    UI.row(
+      UI.button('Add a customer…', () => {
+        const c = S.addCustomer({ name: '' });
+        S.update(() => { doc.customerId = c.id; });
+        UI.toast('Customer added — fill in their details in Masters');
+      }, { class: 'btn sm' }),
+      chosen ? UI.button('Edit in Masters', () => { location.hash = 'masters'; }, { class: 'btn sm' }) : null));
 }
 
 function logoField(doc, setCo) {
@@ -145,6 +170,7 @@ export function renderMastersTab(root) {
 
   root.replaceChildren(el('div', { class: 'library' },
     lockBar(),
+    customerTable(lib),
     profileTable(lib),
     seriesCards(lib),
     rateTable('Glazing', lib.glass, ['name', 'rate'], ['Glass', '₹ / sq.ft'], 'gl'),
@@ -152,6 +178,7 @@ export function renderMastersTab(root) {
     colourTable(lib),
     hardwareTable(lib),
     chargeRates(lib),
+    numbering(lib),
     UI.section('Reset',
       el('p', { class: 'note' }, 'Restores the built-in profiles, series, glass and hardware. Your quotation items are kept.'),
       UI.button('Restore default masters', () => UI.confirmDialog(
@@ -227,6 +254,55 @@ function askUnlock() {
     [{ label: 'Unlock', class: 'btn primary', onClick: submit }]);
   inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(close); });
   setTimeout(() => inp.focus(), 30);
+}
+
+/* ---- customers ---- */
+
+function customerTable(lib) {
+  const body = el('tbody', {});
+  lib.customers.forEach((c, i) => {
+    const jobs = S.quotesFor(c.id).length;
+    body.append(el('tr', {},
+      td('Name', tIn(c.name, (v) => S.update(() => { c.name = v; }), { class: 'inp sm' })),
+      td('Address', UI.areaInput(c.address, (v) => S.update(() => { c.address = v; }),
+        { rows: 2, class: 'inp area sm', disabled: ro })),
+      td('Contact', tIn(c.phone, (v) => S.update(() => { c.phone = v; }), { class: 'inp sm' })),
+      td('Email', tIn(c.email, (v) => S.update(() => { c.email = v; }), { class: 'inp sm' })),
+      td('GSTIN', tIn(c.gstin, (v) => S.update(() => { c.gstin = v; }), { class: 'inp sm' })),
+      td('Site', tIn(c.site, (v) => S.update(() => { c.site = v; }), { class: 'inp sm' })),
+      td('Quotations', el('span', { class: 'calc' }, jobs ? String(jobs) : '—')),
+      td('', del('Remove customer', () => UI.confirmDialog(
+        jobs
+          ? `${c.name || 'This customer'} has ${jobs} quotation${jobs > 1 ? 's' : ''}. Removing the customer keeps them, but they will no longer be addressed to anyone.`
+          : `Remove ${c.name || 'this customer'}?`,
+        () => S.removeCustomer(c.id)), true), 'act')));
+  });
+
+  return UI.section('Customers',
+    el('p', { class: 'note' },
+      'Every quotation is addressed to one of these. Editing a customer here updates the address on all of their quotations, so a corrected phone number does not have to be fixed job by job.'),
+    lib.customers.length
+      ? el('div', { class: 'tablewrap' },
+        el('table', { class: 'libtable' },
+          el('thead', {}, el('tr', {},
+            el('th', {}, 'Name'), el('th', {}, 'Address'), el('th', {}, 'Contact'),
+            el('th', {}, 'Email'), el('th', {}, 'GSTIN'), el('th', {}, 'Site'),
+            el('th', {}, 'Quotations'), el('th', {}))),
+          body))
+      : el('p', { class: 'note' }, 'No customers yet.'),
+    addBtn('+ Add customer', () => S.addCustomer({ name: 'New customer' })));
+}
+
+/* ---- quotation numbering ---- */
+
+function numbering(lib) {
+  const set = (patch) => S.update(() => Object.assign(lib, patch));
+  return UI.section('Quotation numbering',
+    UI.grid(3,
+      UI.field('Prefix', tIn(lib.quotePrefix, (v) => set({ quotePrefix: v }), { class: 'inp sm' })),
+      UI.field('Next number', nIn(lib.quoteNext, (v) => set({ quoteNext: Math.max(1, Math.round(U.num(v, 1))) }),
+        { class: 'inp num sm', step: 1, min: 1 })),
+      UI.field('Next quotation will be', el('div', { class: 'readout' }, S.nextQuoteNo(lib)))));
 }
 
 /* ---- profile sections ---- */
