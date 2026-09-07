@@ -11,6 +11,7 @@ import { CELL_FN, SLIDING_FN, ALL_FN, PROFILE_ROLES } from './catalog.js';
 
 const roleName = (r) => PROFILE_ROLES[r] || r;
 import { PRESETS, PRESET_GROUPS, applyPreset } from './presets.js';
+import { ICON } from './icons.js';
 
 const { el } = U;
 
@@ -41,7 +42,7 @@ function itemList(st, current) {
       el('div', { class: 'itemcard-thumb', html: drawSVG(it, series, { colour: colour?.swatch, showPlan: false, showNumbers: false, showTags: false }) }),
       el('div', { class: 'itemcard-meta' },
         el('div', { class: 'itemcard-title' }, `${i + 1} · ${it.label}`),
-        el('div', { class: 'itemcard-sub' }, `${U.mm(it.width)} × ${U.mm(it.height)} mm`),
+        el('div', { class: 'itemcard-sub dim' }, `${U.mm(it.width)} × ${U.mm(it.height)} mm`),
         el('div', { class: 'itemcard-sub' }, describe(it)),
         el('div', { class: 'itemcard-price' }, `₹ ${U.inr(p.total)}${p.qty > 1 ? ` · ${p.qty} nos` : ''}`)));
     list.append(card);
@@ -53,10 +54,10 @@ function itemList(st, current) {
       UI.button('+ Add', () => openPresetPicker(), { class: 'btn primary sm' })),
     list,
     el('div', { class: 'itemlist-foot' },
-      UI.iconBtn('⧉', 'Duplicate selected', () => S.duplicateItem(st.ui.selected)),
-      UI.iconBtn('↑', 'Move up', () => S.moveItem(st.ui.selected, -1)),
-      UI.iconBtn('↓', 'Move down', () => S.moveItem(st.ui.selected, 1)),
-      UI.iconBtn('🗑', 'Delete selected', () => {
+      UI.iconBtn(ICON.copy, 'Duplicate selected', () => S.duplicateItem(st.ui.selected)),
+      UI.iconBtn(ICON.up, 'Move up', () => S.moveItem(st.ui.selected, -1)),
+      UI.iconBtn(ICON.down, 'Move down', () => S.moveItem(st.ui.selected, 1)),
+      UI.iconBtn(ICON.trash, 'Delete selected', () => {
         const it = S.findItem(st.ui.selected);
         UI.confirmDialog(`Delete ${it?.label}?`, () => S.removeItem(st.ui.selected));
       }, { class: 'ibtn danger' })));
@@ -72,10 +73,12 @@ function editorPane(st, item) {
 
   const set = (patch) => S.update(() => Object.assign(item, patch));
 
+  // title block, the way a drawing sheet carries its own identification
   const preview = el('div', { class: 'preview' },
-    el('div', { class: 'preview-canvas', html: drawSVG(item, series, { colour: colour?.swatch, sqft: price.sqft }) }),
+    el('div', { class: 'preview-canvas', html: drawSVG(item, series, { colour: colour?.swatch }) }),
     el('div', { class: 'preview-legend' },
-      el('span', {}, `${describe(item)} · ${U.round(price.sqft, 2).toFixed(2)} sq.ft`),
+      el('span', { class: 'lead' }, `${item.label} · ${describe(item)}`),
+      el('span', {}, `${U.mm(item.width)} × ${U.mm(item.height)} mm · ${U.round(price.sqft, 2).toFixed(2)} sq.ft`),
       el('span', {}, st.doc.viewLabel)));
 
   return el('div', { class: 'editor' },
@@ -246,10 +249,10 @@ function sectionCard(item, sec, si, st) {
     el('label', { class: 'inline-field' }, 'Height',
       UI.numInput(sec.h, (v) => upd(() => { sec.h = Math.max(50, U.num(v, 50)); }), { class: 'inp num sm', step: 5, min: 50 })),
     el('span', { class: 'spacer' }),
-    UI.iconBtn('↑', 'Move row up', () => upd(() => swap(item.sections, si, si - 1)), { disabled: si === 0 }),
-    UI.iconBtn('↓', 'Move row down', () => upd(() => swap(item.sections, si, si + 1)), { disabled: si === item.sections.length - 1 }),
-    UI.iconBtn('+', 'Add row below', () => addSection(item, si + 1)),
-    UI.iconBtn('🗑', 'Remove row', () => upd(() => {
+    UI.iconBtn(ICON.up, 'Move row up', () => upd(() => swap(item.sections, si, si - 1)), { disabled: si === 0 }),
+    UI.iconBtn(ICON.down, 'Move row down', () => upd(() => swap(item.sections, si, si + 1)), { disabled: si === item.sections.length - 1 }),
+    UI.iconBtn(ICON.plus, 'Add row below', () => addSection(item, si + 1)),
+    UI.iconBtn(ICON.trash, 'Remove row', () => upd(() => {
       if (item.sections.length > 1) item.sections.splice(si, 1);
     }), { class: 'ibtn danger', disabled: item.sections.length < 2 }));
 
@@ -290,7 +293,7 @@ function gridBody(item, sec, st, upd) {
       ...sec.cells.map((c, ci) => el('div', { class: 'cellbox' },
         el('div', { class: 'cellbox-head' }, `Panel ${ci + 1}`,
           el('span', { class: 'spacer' }),
-          UI.iconBtn('×', 'Remove panel', () => upd(() => {
+          UI.iconBtn(ICON.close, 'Remove panel', () => upd(() => {
             if (sec.cells.length > 1) sec.cells.splice(ci, 1);
           }), { class: 'ibtn tiny danger', disabled: sec.cells.length < 2 })),
         UI.field('Width (mm)', UI.numInput(c.w, (v) => upd(() => { c.w = Math.max(50, U.num(v, 50)); }), { class: 'inp num sm', step: 5, min: 50 })),

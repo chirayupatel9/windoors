@@ -33,13 +33,29 @@ const bundle = await build({
 });
 const js = bundle.outputFiles[0].text;
 
-const css = [await read('assets/css/app.css'), await read('assets/css/print.css')].join('\n\n');
+// self-hosted faces become data URIs so one file carries its own typography
+const FACES = [
+  ['Space Grotesk', 600, 'space-grotesk-latin-600-normal.woff2'],
+  ['Space Grotesk', 700, 'space-grotesk-latin-700-normal.woff2'],
+  ['IBM Plex Sans', 400, 'ibm-plex-sans-latin-400-normal.woff2'],
+  ['IBM Plex Sans', 500, 'ibm-plex-sans-latin-500-normal.woff2'],
+  ['IBM Plex Sans', 600, 'ibm-plex-sans-latin-600-normal.woff2'],
+  ['IBM Plex Mono', 400, 'ibm-plex-mono-latin-400-normal.woff2'],
+  ['IBM Plex Mono', 600, 'ibm-plex-mono-latin-600-normal.woff2'],
+];
+const faceCss = (await Promise.all(FACES.map(async ([family, weight, file]) => {
+  const data = await readFile(join(root, 'assets/fonts', file));
+  return `@font-face{font-family:"${family}";font-style:normal;font-weight:${weight};` +
+    `font-display:swap;src:url(data:font/woff2;base64,${data.toString('base64')}) format("woff2")}`;
+}))).join('\n');
+
+const css = [faceCss, await read('assets/css/app.css'), await read('assets/css/print.css')].join('\n\n');
 
 const body = `<header id="topbar" class="topbar"></header>
 <main id="mount" class="mount"></main>
 <div id="boot" class="boot">
   <div class="boot-card">
-    <div class="boot-mark">&#9636;</div>
+    <div class="boot-mark"><svg viewBox="0 0 20 20" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2.6" y="2.6" width="14.8" height="14.8" rx="1"/><path d="M10 2.6v14.8M2.6 10h14.8" stroke-width="1.1"/></svg></div>
     <h1>WinDoors</h1>
     <p>Loading the quotation studio&hellip;</p>
     <noscript><p class="boot-err">This tool needs JavaScript enabled.</p></noscript>

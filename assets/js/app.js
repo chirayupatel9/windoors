@@ -8,6 +8,7 @@ import { renderQuoteTab } from './quote.js';
 import { renderSetupTab, renderMastersTab } from './settings.js';
 import * as X from './exporters.js';
 import { priceQuote } from './pricing.js';
+import { BRAND_MARK, ICON } from './icons.js';
 
 const { el, $ } = U;
 
@@ -39,7 +40,7 @@ function topbar(st) {
   const q = priceQuote(st.doc, st.lib);
   return [
     el('div', { class: 'brand' },
-      el('span', { class: 'brand-mark' }, '▤'),
+      el('span', { class: 'brand-mark', html: BRAND_MARK }),
       el('span', { class: 'brand-name' }, 'WinDoors'),
       el('span', { class: 'brand-sub' }, 'Quotation Studio')),
 
@@ -56,9 +57,9 @@ function topbar(st) {
       el('strong', {}, '₹ ' + U.inr(q.grand, 0))),
 
     el('div', { class: 'actions' },
-      UI.button('Print / PDF', () => X.printQuote(() => go('quote')), { class: 'btn primary' }),
+      printButton(),
       el('div', { class: 'menu' },
-        UI.button('Export ▾', (e) => toggleMenu(e.currentTarget), { class: 'btn' }),
+        exportButton(),
         el('div', { class: 'menu-pop' },
           menuItem('Save job file (.json)', X.exportJSON),
           menuItem('Open job file…', X.importJSON),
@@ -78,6 +79,21 @@ function topbar(st) {
             'Clear this quotation and start again? Your library is kept.',
             () => { S.reset(); go('items'); UI.toast('New quotation started'); }, 'Start new')))))
   ];
+}
+
+function printButton() {
+  const b = UI.button('', () => X.printQuote(() => go('quote')),
+    { class: 'btn primary', title: 'Print the quotation', 'aria-label': 'Print the quotation' });
+  b.append(
+    el('span', { class: 'btn-icon', html: ICON.print }),
+    el('span', { class: 'btn-label' }, 'Print / PDF'));
+  return b;
+}
+
+function exportButton() {
+  const b = UI.button('Export', (e) => toggleMenu(e.currentTarget), { class: 'btn', 'aria-haspopup': 'true' });
+  b.append(el('span', { class: 'btn-icon caret', html: ICON.chevron }));
+  return b;
 }
 
 const menuItem = (label, fn) => el('button', {

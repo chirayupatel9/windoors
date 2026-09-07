@@ -61,8 +61,11 @@ export function button(label, onClick, attrs = {}) {
   return el('button', { type: 'button', class: 'btn', ...attrs, onclick: onClick }, label);
 }
 
+/** `glyph` is SVG markup from icons.js, or plain text for a caret. */
 export function iconBtn(glyph, title, onClick, attrs = {}) {
-  return el('button', { type: 'button', class: 'ibtn', title, 'aria-label': title, ...attrs, onclick: onClick }, glyph);
+  const b = el('button', { type: 'button', class: 'ibtn', title, 'aria-label': title, ...attrs, onclick: onClick });
+  if (/^\s*</.test(String(glyph))) b.innerHTML = glyph; else b.textContent = glyph;
+  return b;
 }
 
 export function section(title, ...children) {

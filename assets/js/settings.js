@@ -6,6 +6,7 @@ import * as UI from './ui.js';
 import * as S from './store.js';
 import { priceQuote } from './pricing.js';
 import { FAMILIES, PROFILE_ROLES } from './catalog.js';
+import { ICON } from './icons.js';
 
 const { el } = U;
 
@@ -124,7 +125,7 @@ const tIn = (v, on, a = {}) => UI.textInput(v, on, { ...a, disabled: ro });
 const nIn = (v, on, a = {}) => UI.numInput(v, on, { ...a, disabled: ro });
 const sIn = (v, opts, on, a = {}) => UI.select(v, opts, on, { ...a, disabled: ro });
 const del = (title, fn, can) =>
-  UI.iconBtn('🗑', title, fn, { class: 'ibtn danger tiny', disabled: ro || !can });
+  UI.iconBtn(ICON.trash, title, fn, { class: 'ibtn danger tiny', disabled: ro || !can });
 const addBtn = (label, fn) => UI.button(label, fn, { class: 'btn sm', disabled: ro });
 
 export function renderMastersTab(root) {
@@ -170,7 +171,7 @@ function lockBar() {
   }
 
   return el('div', { class: 'lockbar' + (locked ? ' locked' : '') },
-    el('span', { class: 'lockbar-icon' }, locked ? '🔒' : protectedNow ? '🔓' : '⚠'),
+    el('span', { class: 'lockbar-icon', html: locked ? ICON.lock : protectedNow ? ICON.unlock : ICON.alert }),
     el('div', { class: 'lockbar-text' },
       el('strong', {},
         locked ? 'Masters are locked' : protectedNow ? 'Masters unlocked' : 'No passcode set'),

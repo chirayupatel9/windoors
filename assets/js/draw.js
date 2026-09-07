@@ -86,7 +86,8 @@ export function render(sol, opts = {}) {
   const out = [];
   out.push(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${r2(svgW)} ${r2(svgH)}" ` +
-    `width="${r2(svgW)}" height="${r2(svgH)}" class="elev" font-family="Inter, Arial, Helvetica, sans-serif">`
+    `width="${r2(svgW)}" height="${r2(svgH)}" class="elev" ` +
+    `font-family="'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace">`
   );
   out.push(defs(uid, o.colour));
   out.push(`<rect x="0" y="0" width="${r2(svgW)}" height="${r2(svgH)}" fill="#fff"/>`);
