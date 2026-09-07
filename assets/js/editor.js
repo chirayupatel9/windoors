@@ -1,0 +1,345 @@
+/* The "Items" tab: item list, live elevation preview, and the panel/section
+ * editor where a window or door is actually configured. */
+
+import * as U from './util.js';
+import * as UI from './ui.js';
+import * as S from './store.js';
+import { drawSVG } from './draw.js';
+import { priceItem } from './pricing.js';
+import { describe, solve } from './geometry.js';
+import { CELL_FN, SLIDING_FN, ALL_FN } from './catalog.js';
+import { PRESETS, PRESET_GROUPS, applyPreset } from './presets.js';
+
+const { el } = U;
+
+export function renderItemsTab(root) {
+  const st = S.state;
+  const item = S.findItem(st.ui.selected) || st.doc.items[0];
+  if (item) st.ui.selected = item.id;
+
+  root.replaceChildren(
+    el('div', { class: 'work' },
+      itemList(st, item),
+      item ? editorPane(st, item) : el('div', { class: 'empty' }, 'Add an item to begin.')));
+}
+
+/* ------------------------------------------------------------------ */
+
+function itemList(st, current) {
+  const list = el('div', { class: 'itemlist-scroll' });
+  st.doc.items.forEach((it, i) => {
+    const series = st.lib.series.find((s) => s.id === it.seriesId) || st.lib.series[0];
+    const colour = st.lib.colours.find((c) => c.id === it.colourId);
+    const p = priceItem(it, st.lib);
+    const card = el('button', {
+      type: 'button',
+      class: 'itemcard' + (it.id === current?.id ? ' active' : ''),
+      onclick: () => S.update((s) => { s.ui.selected = it.id; s.ui.section = 0; s.ui.cell = 0; }),
+    },
+      el('div', { class: 'itemcard-thumb', html: drawSVG(it, series, { colour: colour?.swatch, showPlan: false, showNumbers: false, showTags: false }) }),
+      el('div', { class: 'itemcard-meta' },
+        el('div', { class: 'itemcard-title' }, `${i + 1} · ${it.label}`),
+        el('div', { class: 'itemcard-sub' }, `${U.mm(it.width)} × ${U.mm(it.height)} mm`),
+        el('div', { class: 'itemcard-sub' }, describe(it)),
+        el('div', { class: 'itemcard-price' }, `₹ ${U.inr(p.total)}${p.qty > 1 ? ` · ${p.qty} nos` : ''}`)));
+    list.append(card);
+  });
+
+  return el('aside', { class: 'itemlist' },
+    el('div', { class: 'itemlist-head' },
+      el('strong', {}, `Items (${st.doc.items.length})`),
+      UI.button('+ Add', () => openPresetPicker(), { class: 'btn primary sm' })),
+    list,
+    el('div', { class: 'itemlist-foot' },
+      UI.iconBtn('⧉', 'Duplicate selected', () => S.duplicateItem(st.ui.selected)),
+      UI.iconBtn('↑', 'Move up', () => S.moveItem(st.ui.selected, -1)),
+      UI.iconBtn('↓', 'Move down', () => S.moveItem(st.ui.selected, 1)),
+      UI.iconBtn('🗑', 'Delete selected', () => {
+        const it = S.findItem(st.ui.selected);
+        UI.confirmDialog(`Delete ${it?.label}?`, () => S.removeItem(st.ui.selected));
+      }, { class: 'ibtn danger' })));
+}
+
+/* ------------------------------------------------------------------ */
+
+function editorPane(st, item) {
+  const lib = st.lib;
+  const series = lib.series.find((s) => s.id === item.seriesId) || lib.series[0];
+  const colour = lib.colours.find((c) => c.id === item.colourId) || lib.colours[0];
+  const price = priceItem(item, lib);
+
+  const set = (patch) => S.update(() => Object.assign(item, patch));
+
+  const preview = el('div', { class: 'preview' },
+    el('div', { class: 'preview-canvas', html: drawSVG(item, series, { colour: colour?.swatch, sqft: price.sqft }) }),
+    el('div', { class: 'preview-legend' },
+      el('span', {}, `${describe(item)} · ${U.round(price.sqft, 2).toFixed(2)} sq.ft`),
+      el('span', {}, st.doc.viewLabel)));
+
+  return el('div', { class: 'editor' },
+    el('div', { class: 'editor-top' },
+      preview,
+      el('div', { class: 'editor-side' },
+        basics(item, st, set),
+        specs(item, st, set),
+        priceBox(item, price, set))),
+    layoutEditor(item, st, series),
+  );
+}
+
+/* ---- basics ---- */
+
+function basics(item, st, set) {
+  const lib = st.lib;
+  return UI.section('Item',
+    UI.grid(2,
+      UI.field('Mark / label', UI.textInput(item.label, (v) => set({ label: v }))),
+      UI.field('Qty', UI.numInput(item.qty, (v) => set({ qty: Math.max(1, U.num(v, 1)) }), { min: 1, step: 1 }))),
+    UI.grid(2,
+      UI.field('Width (mm)', UI.numInput(item.width, (v) => resize(item, U.num(v, 1), null), { min: 100, step: 5 })),
+      UI.field('Height (mm)', UI.numInput(item.height, (v) => resize(item, null, U.num(v, 1)), { min: 100, step: 5 }))),
+    UI.field('Series / profile system',
+      UI.select(item.seriesId, lib.series.map((s) => ({ value: s.id, label: s.name })), (v) => set({ seriesId: v })),
+      seriesHint(lib.series.find((s) => s.id === item.seriesId))),
+    UI.grid(2,
+      UI.field('Location', UI.textInput(item.location, (v) => set({ location: v }), { placeholder: 'GF HALL FRONT SIDE' })),
+      UI.field('Floor', UI.textInput(item.floor, (v) => set({ floor: v }), { placeholder: '0' }))),
+    UI.field('Notes', UI.areaInput(item.notes, (v) => set({ notes: v }), { rows: 2, placeholder: 'EXTRA PREMIUM HARDWARE = HIVIK BRAND' })),
+    UI.row(
+      UI.button('Change type…', () => openPresetPicker(item), { class: 'btn' }),
+      UI.button('Duplicate', () => S.duplicateItem(item.id), { class: 'btn' })));
+}
+
+const seriesHint = (s) => (s ? `frame ${s.face}mm · sash ${s.sash}mm · ₹${s.rate}/sq.ft · min ${s.minSqft} sq.ft` : '');
+
+/** Resizing keeps the section/cell proportions and re-fits them to the new size. */
+function resize(item, w, h) {
+  S.update(() => {
+    if (w) item.width = Math.max(100, w);
+    if (h) item.height = Math.max(100, h);
+    const hs = U.normaliseParts(item.sections.map((s) => s.h), item.height);
+    item.sections.forEach((s, i) => {
+      s.h = hs[i];
+      if (s.cells?.length) {
+        const ws = U.normaliseParts(s.cells.map((c) => c.w), item.width);
+        s.cells.forEach((c, j) => (c.w = ws[j]));
+      }
+    });
+  });
+}
+
+/* ---- specification ---- */
+
+function specs(item, st, set) {
+  const lib = st.lib;
+  return UI.section('Specification',
+    UI.field('Default glazing',
+      UI.select(item.glassId, lib.glass.map((g) => ({ value: g.id, label: `${g.name} — ₹${g.rate}/sq.ft` })), (v) => set({ glassId: v })),
+      'Applies to every pane that has no glass of its own.'),
+    UI.grid(2,
+      UI.field('Profile colour',
+        UI.select(item.colourId, lib.colours.map((c) => ({ value: c.id, label: `${c.name}${c.extra ? ` (+₹${c.extra})` : ''}` })), (v) => set({ colourId: v }))),
+      UI.field('Mesh type',
+        UI.select(item.meshId, lib.mesh.map((m) => ({ value: m.id, label: `${m.name} — ₹${m.rate}` })), (v) => set({ meshId: v })))),
+    UI.grid(2,
+      UI.field('Locking', UI.select(item.locking, LOCK_OPTS, (v) => set({ locking: v }))),
+      UI.field('Handle colour', UI.select(item.handleColour, HANDLE_OPTS, (v) => set({ handleColour: v })))));
+}
+
+const LOCK_OPTS = ['Multi-point', 'Touch lock', 'Single point', 'Mortise lock', '—'].map((v) => ({ value: v, label: v }));
+const HANDLE_OPTS = ['BLACK', 'SILVER', 'WHITE', 'CHAMPAGNE', 'ROSE GOLD'].map((v) => ({ value: v, label: v }));
+
+/* ---- price ---- */
+
+function priceBox(item, price, set) {
+  const b = price.breakdown;
+  const rows = [
+    ['Aluminium + fabrication', b.profile],
+    ['Powder coat / finish', b.finish],
+    ['Glass', b.glass],
+    ['Mesh', b.mesh],
+    ['Hardware', b.hardware],
+    ['Wastage', b.wastage],
+    ['Add-on', b.addons],
+    ['Line discount', -b.discount],
+  ].filter(([, v]) => Math.abs(v) > 0.005);
+
+  return UI.section('Price',
+    el('table', { class: 'mini' },
+      el('tbody', {},
+        ...rows.map(([k, v]) => el('tr', {}, el('td', {}, k), el('td', { class: 'r' }, U.inr(v)))),
+        el('tr', { class: 'sep' },
+          el('td', {}, price.overridden ? 'Unit price (manual)' : 'Unit price'),
+          el('td', { class: 'r b' }, U.inr(price.unit))),
+        el('tr', {},
+          el('td', {}, `Rate / sq.ft${price.minApplied ? ` · min ${price.series.minSqft} sq.ft applied` : ''}`),
+          el('td', { class: 'r' }, U.inr(price.ratePerSqft))),
+        el('tr', { class: 'tot' },
+          el('td', {}, `Total × ${price.qty}`),
+          el('td', { class: 'r b' }, '₹ ' + U.inr(price.total))))),
+    UI.grid(3,
+      UI.field('Add-on ₹', UI.numInput(item.addonAmount, (v) => set({ addonAmount: U.num(v) }), { step: 100 })),
+      UI.field('Discount %', UI.numInput(item.discountPct, (v) => set({ discountPct: U.num(v) }), { step: 1, min: 0, max: 100 })),
+      UI.field('Override ₹', UI.numInput(item.unitPriceOverride ?? '', (v) => set({ unitPriceOverride: v === '' ? null : U.num(v) }), { step: 100, placeholder: 'auto' }))));
+}
+
+/* ---- layout: sections and panels ---- */
+
+function layoutEditor(item, st, series) {
+  const body = el('div', { class: 'sections' });
+
+  item.sections.forEach((sec, si) => body.append(sectionCard(item, sec, si, st)));
+
+  return el('div', { class: 'panel layout' },
+    el('h3', { class: 'panel-title' }, 'Layout',
+      el('span', { class: 'spacer' }),
+      UI.button('+ Row above', () => addSection(item, 0), { class: 'btn sm' }),
+      UI.button('+ Row below', () => addSection(item, item.sections.length), { class: 'btn sm' })),
+    el('div', { class: 'panel-body' }, body,
+      el('p', { class: 'note' },
+        'A row spans the full width. Widths inside a row and the row heights are measured to the centre-line of the divider, exactly as they are dimensioned on the drawing — they always add up to the overall size.')));
+}
+
+function sectionCard(item, sec, si, st) {
+  const isSliding = sec.type === 'sliding';
+  const upd = (fn) => S.update(() => { fn(); refit(item); });
+
+  const head = el('div', { class: 'sec-head' },
+    el('span', { class: 'sec-no' }, `Row ${si + 1}`),
+    UI.select(sec.type, [
+      { value: 'grid', label: 'Fixed / openable panels' },
+      { value: 'sliding', label: 'Sliding track' },
+    ], (v) => upd(() => {
+      sec.type = v;
+      if (v === 'sliding' && !sec.panels?.length) {
+        sec.tracks = 2;
+        sec.panels = [{ id: U.uid('p'), fn: 'slide-l' }, { id: U.uid('p'), fn: 'slide-r' }];
+      }
+      if (v === 'grid' && !sec.cells?.length) sec.cells = [{ id: U.uid('c'), w: item.width, fn: 'fix' }];
+    }), { class: 'inp sm' }),
+    el('label', { class: 'inline-field' }, 'Height',
+      UI.numInput(sec.h, (v) => upd(() => { sec.h = Math.max(50, U.num(v, 50)); }), { class: 'inp num sm', step: 5, min: 50 })),
+    el('span', { class: 'spacer' }),
+    UI.iconBtn('↑', 'Move row up', () => upd(() => swap(item.sections, si, si - 1)), { disabled: si === 0 }),
+    UI.iconBtn('↓', 'Move row down', () => upd(() => swap(item.sections, si, si + 1)), { disabled: si === item.sections.length - 1 }),
+    UI.iconBtn('+', 'Add row below', () => addSection(item, si + 1)),
+    UI.iconBtn('🗑', 'Remove row', () => upd(() => {
+      if (item.sections.length > 1) item.sections.splice(si, 1);
+    }), { class: 'ibtn danger', disabled: item.sections.length < 2 }));
+
+  return el('div', { class: 'sec-card' }, head,
+    isSliding ? slidingBody(item, sec, st, upd) : gridBody(item, sec, st, upd));
+}
+
+function slidingBody(item, sec, st, upd) {
+  const lib = st.lib;
+  const tracks = U.clamp(Math.round(U.num(sec.tracks, 2)), 1, 6);
+  while (sec.panels.length < tracks) sec.panels.push({ id: U.uid('p'), fn: 'slide-r' });
+  sec.panels.length = tracks;
+
+  return el('div', { class: 'sec-body' },
+    UI.row(
+      UI.field('Tracks', UI.numInput(tracks, (v) => upd(() => {
+        sec.tracks = U.clamp(Math.round(U.num(v, 2)), 1, 6);
+        while (sec.panels.length < sec.tracks) sec.panels.push({ id: U.uid('p'), fn: 'slide-r' });
+        sec.panels.length = sec.tracks;
+      }), { min: 1, max: 6, step: 1, class: 'inp num sm' })),
+      UI.field('Mosquito net', UI.select(sec.mesh || 'none', [
+        { value: 'none', label: 'No mesh' },
+        { value: 'left', label: 'Mesh sash — parks left' },
+        { value: 'right', label: 'Mesh sash — parks right' },
+      ], (v) => upd(() => { sec.mesh = v; }), { class: 'inp sm' }))),
+    el('div', { class: 'cellgrid' },
+      ...sec.panels.map((p, pi) => el('div', { class: 'cellbox' },
+        el('div', { class: 'cellbox-head' }, `Sash ${pi + 1}`),
+        UI.select(p.fn, Object.entries(SLIDING_FN).map(([k, v]) => ({ value: k, label: v.label })),
+          (v) => upd(() => { p.fn = v; }), { class: 'inp sm' }),
+        UI.select(p.glassId || '', glassOpts(lib, item), (v) => upd(() => { p.glassId = v || null; }), { class: 'inp sm' })))));
+}
+
+function gridBody(item, sec, st, upd) {
+  const lib = st.lib;
+  return el('div', { class: 'sec-body' },
+    el('div', { class: 'cellgrid' },
+      ...sec.cells.map((c, ci) => el('div', { class: 'cellbox' },
+        el('div', { class: 'cellbox-head' }, `Panel ${ci + 1}`,
+          el('span', { class: 'spacer' }),
+          UI.iconBtn('×', 'Remove panel', () => upd(() => {
+            if (sec.cells.length > 1) sec.cells.splice(ci, 1);
+          }), { class: 'ibtn tiny danger', disabled: sec.cells.length < 2 })),
+        UI.field('Width (mm)', UI.numInput(c.w, (v) => upd(() => { c.w = Math.max(50, U.num(v, 50)); }), { class: 'inp num sm', step: 5, min: 50 })),
+        UI.select(c.fn, Object.entries(CELL_FN).map(([k, v]) => ({ value: k, label: v.label })),
+          (v) => upd(() => { c.fn = v; }), { class: 'inp sm' }),
+        UI.select(c.glassId || '', glassOpts(lib, item), (v) => upd(() => { c.glassId = v || null; }), { class: 'inp sm' }))),
+      el('button', {
+        type: 'button', class: 'cellbox add',
+        onclick: () => upd(() => sec.cells.push({ id: U.uid('c'), w: Math.round(item.width / (sec.cells.length + 1)), fn: 'fix' })),
+      }, '+ Panel')));
+}
+
+const glassOpts = (lib, item) => [
+  { value: '', label: `Default — ${lib.glass.find((g) => g.id === item.glassId)?.name || '—'}` },
+  ...lib.glass.map((g) => ({ value: g.id, label: g.name })),
+];
+
+function addSection(item, at) {
+  S.update(() => {
+    const h = Math.max(100, Math.round(item.height / (item.sections.length + 1)));
+    item.sections.splice(at, 0, {
+      id: U.uid('sec'), type: 'grid', h, mesh: 'none', tracks: 2, panels: [],
+      cells: [{ id: U.uid('c'), w: item.width, fn: 'fix' }],
+    });
+    refit(item);
+  });
+}
+
+function swap(arr, a, b) {
+  if (b < 0 || b >= arr.length) return;
+  [arr[a], arr[b]] = [arr[b], arr[a]];
+}
+
+/** Keeps section heights summing to the item height and cell widths to the width. */
+function refit(item) {
+  const hs = U.normaliseParts(item.sections.map((s) => s.h), item.height);
+  item.sections.forEach((s, i) => {
+    s.h = hs[i];
+    if (s.cells?.length) {
+      const ws = U.normaliseParts(s.cells.map((c) => c.w), item.width);
+      s.cells.forEach((c, j) => (c.w = ws[j]));
+    }
+  });
+}
+
+/* ---- preset picker ---- */
+
+export function openPresetPicker(target) {
+  const st = S.state;
+  const body = el('div', { class: 'presets' });
+
+  for (const group of PRESET_GROUPS) {
+    body.append(el('h4', { class: 'presets-group' }, group));
+    const gridEl = el('div', { class: 'presets-grid' });
+    for (const p of PRESETS.filter((x) => x.group === group)) {
+      const demo = { width: p.w, height: p.h, sections: [] };
+      applyPreset(demo, p, st.lib, true);
+      const series = st.lib.series.find((s) => s.id === demo.seriesId) || st.lib.series[0];
+      gridEl.append(el('button', {
+        type: 'button', class: 'preset',
+        onclick: () => {
+          close();
+          if (target) {
+            S.update(() => applyPreset(target, p, st.lib, false));
+          } else {
+            const it = S.addItem({});
+            S.update(() => applyPreset(it, p, st.lib, true));
+          }
+        },
+      },
+        el('div', { class: 'preset-thumb', html: drawSVG(demo, series, { colour: '#8d9199', showPlan: false, showNumbers: false, showTags: false }) }),
+        el('div', { class: 'preset-name' }, p.name)));
+    }
+    body.append(gridEl);
+  }
+
+  const close = UI.modal(target ? `Change type — ${target.label}` : 'Add window or door', body);
+}

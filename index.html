@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WinDoors — Aluminium Window &amp; Door Quotation Studio</title>
+<meta name="description" content="Draw aluminium windows and doors to size, pick the profile series and glazing, and print a priced quotation with elevation drawings.">
+<meta name="theme-color" content="#12161c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2312161c'/%3E%3Crect x='6' y='6' width='20' height='20' fill='none' stroke='%2374c0e8' stroke-width='2'/%3E%3Cline x1='16' y1='6' x2='16' y2='26' stroke='%2374c0e8' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/print.css">
+</head>
+<body data-tab="items">
+
+<header id="topbar" class="topbar"></header>
+<main id="mount" class="mount"></main>
+
+<div id="boot" class="boot">
+  <div class="boot-card">
+    <div class="boot-mark">▤</div>
+    <h1>WinDoors</h1>
+    <p>Loading the quotation studio…</p>
+    <noscript><p class="boot-err">This tool needs JavaScript enabled.</p></noscript>
+  </div>
+</div>
+
+<script type="module">
+  import { start } from './assets/js/app.js';
+  try {
+    start();
+  } catch (err) {
+    console.error(err);
+    const b = document.getElementById('boot');
+    if (b) b.innerHTML = '<div class="boot-card"><h1>Something went wrong</h1><pre>' +
+      String(err && err.message || err) + '</pre></div>';
+  }
+</script>
+</body>
+</html>
