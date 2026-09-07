@@ -23,6 +23,7 @@ export const ICON = {
   sun: svg('<circle cx="8" cy="8" r="3.1"/><path d="M8 1.4v1.5M8 13.1v1.5M2.9 2.9l1.1 1.1M12 12l1.1 1.1M1.4 8h1.5M13.1 8h1.5M2.9 13.1 4 12M12 4l1.1-1.1"/>'),
   moon: svg('<path d="M13.2 9.4A5.6 5.6 0 0 1 6.6 2.8a5.6 5.6 0 1 0 6.6 6.6Z"/>'),
   monitor: svg('<rect x="1.9" y="3" width="12.2" height="8.2" rx="1.2"/><path d="M5.6 13.6h4.8M8 11.2v2.4"/>'),
+  fold: svg('<path d="M2.6 8h10.8M5.4 4.6 8 2.2l2.6 2.4M5.4 11.4 8 13.8l2.6-2.4"/>'),
   print: svg('<path d="M4.4 6.2V2.8h7.2v3.4"/><rect x="2.4" y="6.2" width="11.2" height="4.6" rx="1.2"/><path d="M4.4 10.2h7.2v3.2H4.4z"/>'),
 };
 

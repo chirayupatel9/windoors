@@ -444,7 +444,7 @@ function grips(sol, ctx) {
   const out = [];
   const bar = (x, y, w, h, data, cursor) =>
     `<rect class="grip" data-cursor="${cursor}" ${data} x="${r2(x)}" y="${r2(y)}" ` +
-    `width="${r2(w)}" height="${r2(h)}" rx="2" fill="transparent"/>`;
+    `width="${r2(Math.max(0, w))}" height="${r2(Math.max(0, h))}" rx="2" fill="transparent"/>`;
 
   for (const chain of sol.chainsX) {
     if (chain.source !== 'cells') continue;

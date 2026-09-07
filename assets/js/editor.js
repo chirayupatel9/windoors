@@ -227,14 +227,16 @@ function layoutEditor(item, st, series) {
 
   item.sections.forEach((sec, si) => body.append(sectionCard(item, sec, si, st)));
 
-  return el('div', { class: 'panel layout' },
-    el('h3', { class: 'panel-title' }, 'Layout',
-      el('span', { class: 'spacer' }),
+  return UI.section({
+    title: 'Layout',
+    class: 'layout',
+    actions: [
       UI.button('+ Row above', () => addSection(item, 0), { class: 'btn sm' }),
-      UI.button('+ Row below', () => addSection(item, item.sections.length), { class: 'btn sm' })),
-    el('div', { class: 'panel-body' }, body,
-      el('p', { class: 'note' },
-        'A row spans the full width. Widths inside a row and the row heights are measured to the centre-line of the divider, exactly as they are dimensioned on the drawing — they always add up to the overall size.')));
+      UI.button('+ Row below', () => addSection(item, item.sections.length), { class: 'btn sm' }),
+    ],
+  }, body,
+    el('p', { class: 'note' },
+      'A row spans the full width. Widths inside a row and the row heights are measured to the centre-line of the divider, exactly as they are dimensioned on the drawing — they always add up to the overall size.'));
 }
 
 function sectionCard(item, sec, si, st) {

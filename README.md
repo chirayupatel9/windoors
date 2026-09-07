@@ -136,6 +136,10 @@ quotation shows both the rate and what it comes to. On a phone the A4 sheet
 scales to the screen width, the way a print preview does; what prints is
 unaffected.
 
+Every panel folds away by clicking its heading, and stays folded until you
+open it again; the control next to the theme button folds or opens them all at
+once.
+
 Light and dark both ship. The theme button in the top bar cycles
 **follows your device → light → dark**, and the choice is remembered per
 browser. The drawing sheet stays paper-white in both, because that is what

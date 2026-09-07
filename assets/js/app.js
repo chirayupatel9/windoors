@@ -31,9 +31,10 @@ function go(tab) {
 function draw() {
   const st = S.state;
   const tab = TABS.find((t) => t.id === st.ui.tab) || TABS[0];
-  bar.replaceChildren(...topbar(st));
   document.body.dataset.tab = tab.id;
-  tab.render(mount);
+  // the whole subtree is rebuilt, so hold the caret across it
+  UI.preserveFocus(bar, () => bar.replaceChildren(...topbar(st)));
+  UI.preserveFocus(mount, () => tab.render(mount));
 }
 
 function topbar(st) {
@@ -59,6 +60,7 @@ function topbar(st) {
       el('strong', {}, '₹ ' + U.inr(q.grand, 0))),
 
     el('div', { class: 'actions' },
+      foldToggle(),
       themeToggle(st),
       printButton(),
       el('div', { class: 'menu' },
@@ -85,6 +87,19 @@ function topbar(st) {
             UI.toast('New quotation started');
           }))))
   ];
+}
+
+/* Fold every panel on the page away, or open them all again. */
+function foldToggle() {
+  let folded = false;
+  const b = UI.iconBtn(ICON.fold, 'Collapse all panels', () => {
+    folded = !folded;
+    UI.foldAll(folded);
+    b.title = folded ? 'Expand all panels' : 'Collapse all panels';
+    b.setAttribute('aria-label', b.title);
+    b.classList.toggle('on', folded);
+  }, { class: 'ibtn fold' });
+  return b;
 }
 
 /* Which job is open, and the way into all the others. */
