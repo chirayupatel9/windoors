@@ -5,6 +5,7 @@ import * as U from './util.js';
 import * as UI from './ui.js';
 import * as S from './store.js';
 import { drawSVG } from './draw.js';
+import { seriesFor, solve, cutList, metalSummary } from './geometry.js';
 
 const safe = (s) => String(s || 'quote').replace(/[^\w.-]+/g, '_').slice(0, 60);
 
@@ -58,7 +59,7 @@ export async function download(filename, blob) {
 }
 
 export function itemSVG(item, lib, opts = {}) {
-  const series = lib.series.find((s) => s.id === item.seriesId) || lib.series[0];
+  const series = seriesFor(item, lib);
   const colour = lib.colours.find((c) => c.id === item.colourId) || lib.colours[0];
   return drawSVG(item, series, {
     colour: colour?.swatch,
@@ -199,4 +200,60 @@ export function printQuote(goToQuote) {
   goToQuote();
   // two frames: one for the tab swap, one for pagination to settle
   requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => window.print(), 120)));
+}
+
+
+/* ---- cutting list for the factory ---- */
+
+/**
+ * Every cut length in the job, plus the metal roll-up per profile. This is
+ * shop paperwork, not customer paperwork — it never goes on the quotation.
+ */
+export function exportCutList() {
+  const { doc, lib } = S.state;
+  const head = ['Mark', 'Location', 'Qty', 'Series', 'Role', 'Profile code', 'Profile',
+    'Pieces per unit', 'Length mm', 'Total mm per unit', 'Total mm for qty'];
+  const rows = [];
+  const metalTotals = new Map();
+
+  for (const item of doc.items) {
+    const series = seriesFor(item, lib);
+    const sol = solve(item, series);
+    const qty = Math.max(1, Math.round(U.num(item.qty, 1)));
+    const assigned = series.sections || {};
+
+    for (const c of cutList(sol, item)) {
+      const prof = lib.profiles?.find((p) => p.id === assigned[c.role]);
+      rows.push([item.label, item.location || '', qty, series.name, c.role,
+        prof?.code || '', prof?.name || 'not assigned',
+        c.count, c.each, c.total, c.total * qty]);
+    }
+
+    for (const line of metalSummary(sol, item, series, lib).lines) {
+      if (!line.profile) continue;
+      const key = line.profile.id;
+      const acc = metalTotals.get(key) || { profile: line.profile, metres: 0, kg: 0, cost: 0 };
+      acc.metres += line.metres * qty;
+      acc.kg += line.kg * qty;
+      acc.cost += line.cost * qty;
+      metalTotals.set(key, acc);
+    }
+  }
+
+  rows.push([]);
+  rows.push(['SUMMARY BY PROFILE']);
+  rows.push(['Profile code', 'Profile', 'Total metres', 'Total kg', 'Bars to order', 'Bar length mm', 'Metal cost']);
+  for (const a of metalTotals.values()) {
+    const bars = U.num(a.profile.barLength) > 0
+      ? Math.ceil((a.metres * 1000) / U.num(a.profile.barLength)) : '';
+    rows.push([a.profile.code, a.profile.name, U.round(a.metres, 2), U.round(a.kg, 3),
+      bars, a.profile.barLength, U.round(a.cost, 2)]);
+  }
+
+  const csv = [head, ...rows]
+    .map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+    .join('\r\n');
+  return download(`${safe(S.state.doc.quoteNo)}_cutting_list.csv`,
+    new Blob(['\ufeff' + csv], { type: 'text/csv' }))
+    .then((ok) => { if (ok) UI.toast('Cutting list saved'); });
 }

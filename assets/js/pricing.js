@@ -12,7 +12,7 @@
  */
 
 import * as U from './util.js';
-import { solve, paneAreas } from './geometry.js';
+import { solve, paneAreas, seriesFor, metalSummary } from './geometry.js';
 import { ALL_FN, isGlazed } from './catalog.js';
 
 const N = U.num;
@@ -30,7 +30,7 @@ function autoHardware(fn) {
 }
 
 export function priceItem(item, lib) {
-  const series = lib.series.find((s) => s.id === item.seriesId) || lib.series[0];
+  const series = seriesFor(item, lib);
   const colour = lib.colours.find((c) => c.id === item.colourId) || lib.colours[0];
   const sol = solve(item, series);
   const panes = paneAreas(sol);
@@ -39,7 +39,17 @@ export function priceItem(item, lib) {
   const minSqft = N(series.minSqft, 0);
   const billSqft = Math.max(sqft, minSqft);
 
-  const profile = N(series.rate) * billSqft;
+  /*
+   * Two ways to cost the aluminium, chosen per series:
+   *   sqft   - a flat rate per square foot, for a series you quote every day
+   *   weight - the cut lengths from the drawing x kg/m x rate/kg, plus
+   *            fabrication labour, for costing a section precisely
+   */
+  const byWeight = series.costing === 'weight';
+  const metal = byWeight ? metalSummary(sol, item, series, lib) : null;
+  const profile = byWeight
+    ? metal.cost + N(series.labourPerSqft) * billSqft
+    : N(series.rate) * billSqft;
   const finish = N(colour?.extra) * billSqft;
 
   const glassFallback = item.glassId || lib.glass[0]?.id;
@@ -102,11 +112,13 @@ export function priceItem(item, lib) {
   const total = unit * qty;
 
   return {
-    series, colour, sol, panes,
+    series, colour, sol, panes, metal, byWeight,
     sqft, billSqft, minApplied: billSqft > sqft + 1e-9,
     breakdown: {
       profile, finish, glass, mesh, hardware, wastage, addons, discount,
       glassLines, hwLines,
+      metalCost: metal ? metal.cost : 0,
+      labour: byWeight ? N(series.labourPerSqft) * billSqft : 0,
     },
     unit, total, qty, overridden,
     ratePerSqft: sqft > 0 ? unit / sqft : 0,

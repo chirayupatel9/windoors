@@ -5,7 +5,7 @@ import * as UI from './ui.js';
 import * as S from './store.js';
 import { renderItemsTab, openPresetPicker } from './editor.js';
 import { renderQuoteTab } from './quote.js';
-import { renderSetupTab, renderLibraryTab } from './settings.js';
+import { renderSetupTab, renderMastersTab } from './settings.js';
 import * as X from './exporters.js';
 import { priceQuote } from './pricing.js';
 
@@ -15,7 +15,7 @@ const TABS = [
   { id: 'items', label: 'Items', render: renderItemsTab },
   { id: 'quote', label: 'Quotation', render: renderQuoteTab },
   { id: 'setup', label: 'Setup', render: renderSetupTab },
-  { id: 'library', label: 'Library', render: renderLibraryTab },
+  { id: 'masters', label: 'Masters', render: renderMastersTab },
 ];
 
 let mount, bar;
@@ -64,6 +64,7 @@ function topbar(st) {
           menuItem('Open job file…', X.importJSON),
           menuItem('Drawings as PNG sheet', X.exportAllPNG),
           menuItem('Priced lines as CSV', () => X.exportCSV(priceQuote(S.state.doc, S.state.lib))),
+          menuItem('Cutting list as CSV (factory)', X.exportCutList),
           menuItem('Current drawing as PNG', () => {
             const it = S.findItem(S.state.ui.selected);
             if (it) X.exportItemPNG(it); else UI.toast('Select an item first', 'err');
@@ -125,7 +126,8 @@ export function start() {
   if (!S.state.ui.selected) S.state.ui.selected = S.state.doc.items[0]?.id || null;
 
   const hash = location.hash.replace('#', '');
-  if (TABS.some((t) => t.id === hash)) S.state.ui.tab = hash;
+  if (hash === 'library') S.state.ui.tab = 'masters';        // pre-rename links
+  else if (TABS.some((t) => t.id === hash)) S.state.ui.tab = hash;
 
   S.subscribe(() => draw());
   window.addEventListener('hashchange', () => {

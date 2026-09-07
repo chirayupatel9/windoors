@@ -18,42 +18,105 @@ export const FAMILIES = {
   ventilator: 'Ventilator',
 };
 
+
+/*
+ * Profile sections — the extrusions themselves. A fabricator buys aluminium
+ * by weight, so each section carries kg/m and a rate per kg; the cut lengths
+ * come from the drawing, which means a quote can be costed on real metal
+ * instead of a flat rate per square foot.
+ */
+export const PROFILE_ROLES = {
+  frame: 'Outer frame',
+  sash: 'Sash / shutter',
+  mullion: 'Mullion (vertical)',
+  transom: 'Transom (horizontal)',
+  bead: 'Glazing bead',
+  interlock: 'Sliding interlock',
+  meshSash: 'Mesh sash',
+  louver: 'Louver blade',
+  other: 'Other / accessory',
+};
+
+/** Roles whose face width, when a section is assigned, drives the drawing. */
+export const FACE_ROLES = {
+  face: 'frame', sash: 'sash', mullion: 'mullion',
+  transom: 'transom', bead: 'bead', interlock: 'interlock',
+};
+
+export const defaultProfiles = () => [
+  // WOLF 40mm casement
+  { id: 'pr_c40_of', code: 'WC40-OF', name: 'Casement 40mm outer frame', role: 'frame', face: 40, kgPerM: 0.985, ratePerKg: 348, barLength: 4877 },
+  { id: 'pr_c40_sh', code: 'WC40-SH', name: 'Casement 40mm shutter', role: 'sash', face: 40, kgPerM: 0.921, ratePerKg: 348, barLength: 4877 },
+  { id: 'pr_c40_mu', code: 'WC40-MU', name: 'Casement 40mm mullion', role: 'mullion', face: 40, kgPerM: 1.184, ratePerKg: 348, barLength: 4877 },
+  { id: 'pr_c40_tr', code: 'WC40-TR', name: 'Casement 40mm transom', role: 'transom', face: 40, kgPerM: 1.184, ratePerKg: 348, barLength: 4877 },
+  { id: 'pr_c40_bd', code: 'WC40-BD', name: 'Casement 40mm glazing bead', role: 'bead', face: 6, kgPerM: 0.212, ratePerKg: 352, barLength: 4877 },
+
+  // Vega slim sliding
+  { id: 'pr_vs_of', code: 'VS-OF', name: 'Vega slim sliding frame', role: 'frame', face: 18, kgPerM: 0.762, ratePerKg: 352, barLength: 5850 },
+  { id: 'pr_vs_sh', code: 'VS-SH', name: 'Vega slim sliding shutter', role: 'sash', face: 32, kgPerM: 0.648, ratePerKg: 352, barLength: 5850 },
+  { id: 'pr_vs_il', code: 'VS-IL', name: 'Vega slim interlock', role: 'interlock', face: 18, kgPerM: 0.455, ratePerKg: 352, barLength: 5850 },
+  { id: 'pr_vs_ms', code: 'VS-MS', name: 'Vega slim mesh sash', role: 'meshSash', face: 24, kgPerM: 0.386, ratePerKg: 352, barLength: 5850 },
+  { id: 'pr_vs_bd', code: 'VS-BD', name: 'Vega slim glazing bead', role: 'bead', face: 5, kgPerM: 0.168, ratePerKg: 352, barLength: 5850 },
+
+  // Silenza hidden slim sliding
+  { id: 'pr_sz_of', code: 'SZ-OF', name: 'Silenza hidden frame', role: 'frame', face: 20, kgPerM: 0.884, ratePerKg: 366, barLength: 5850 },
+  { id: 'pr_sz_sh', code: 'SZ-SH', name: 'Silenza hidden shutter', role: 'sash', face: 26, kgPerM: 0.712, ratePerKg: 366, barLength: 5850 },
+  { id: 'pr_sz_il', code: 'SZ-IL', name: 'Silenza interlock', role: 'interlock', face: 16, kgPerM: 0.402, ratePerKg: 366, barLength: 5850 },
+
+  // Generic
+  { id: 'pr_lv_bl', code: 'GEN-LV', name: 'Louver blade', role: 'louver', face: 0, kgPerM: 0.246, ratePerKg: 344, barLength: 4877 },
+  { id: 'pr_fx50_of', code: 'FX50-OF', name: 'Fix glazing 50mm frame', role: 'frame', face: 50, kgPerM: 1.312, ratePerKg: 344, barLength: 5850 },
+  { id: 'pr_fx50_mu', code: 'FX50-MU', name: 'Fix glazing 50mm mullion', role: 'mullion', face: 50, kgPerM: 1.564, ratePerKg: 344, barLength: 5850 },
+];
+
 export const defaultSeries = () => [
   {
     id: 'ser_cas40', name: 'WOLF 40MM CASEMENT SERIES', family: 'casement',
     face: 40, sash: 40, mullion: 40, transom: 40, interlock: 0, bead: 6,
     rate: 640, minSqft: 10, wastagePct: 0,
     note: '40mm casement system — fixed, openable, top-hung and ventilator combinations.',
+    costing: 'sqft', labourPerSqft: 210,
+    sections: { frame: 'pr_c40_of', sash: 'pr_c40_sh', mullion: 'pr_c40_mu', transom: 'pr_c40_tr', bead: 'pr_c40_bd' },
   },
   {
     id: 'ser_vegaslim', name: 'WOLF VEGA SLIM SLIDING SERIES', family: 'sliding',
     face: 18, sash: 32, mullion: 40, transom: 40, interlock: 18, bead: 5,
     rate: 590, minSqft: 10, wastagePct: 0, tracks: [2, 3, 4],
     note: 'Slim-line sliding with narrow interlock — 2, 3 and 4 track.',
+    costing: 'sqft', labourPerSqft: 195,
+    sections: { frame: 'pr_vs_of', sash: 'pr_vs_sh', interlock: 'pr_vs_il', meshSash: 'pr_vs_ms', bead: 'pr_vs_bd' },
   },
   {
     id: 'ser_silenza', name: 'WOLF SILENZA HIDDEN SLIM SLIDING SERIES', family: 'sliding',
     face: 20, sash: 26, mullion: 40, transom: 40, interlock: 16, bead: 5,
     rate: 780, minSqft: 10, wastagePct: 0, tracks: [2, 3, 4],
     note: 'Hidden-sash slim sliding — minimum sightline.',
+    costing: 'sqft', labourPerSqft: 240,
+    sections: { frame: 'pr_sz_of', sash: 'pr_sz_sh', interlock: 'pr_sz_il', bead: 'pr_vs_bd' },
   },
   {
     id: 'ser_slide27', name: 'STANDARD 2 TRACK SLIDING (27MM)', family: 'sliding',
     face: 27, sash: 40, mullion: 40, transom: 40, interlock: 26, bead: 5,
     rate: 385, minSqft: 10, wastagePct: 0, tracks: [2, 3],
     note: 'Economy domal-type sliding window.',
+    costing: 'sqft', labourPerSqft: 150,
+    sections: { frame: 'pr_vs_of', sash: 'pr_vs_sh', interlock: 'pr_vs_il', bead: 'pr_vs_bd' },
   },
   {
     id: 'ser_fix50', name: 'STRUCTURAL FIX GLAZING 50MM', family: 'fix',
     face: 50, sash: 0, mullion: 50, transom: 50, interlock: 0, bead: 8,
     rate: 520, minSqft: 12, wastagePct: 0,
     note: 'Heavy fixed glazing for tall spans and staircase lights.',
+    costing: 'sqft', labourPerSqft: 165,
+    sections: { frame: 'pr_fx50_of', mullion: 'pr_fx50_mu', transom: 'pr_fx50_mu', bead: 'pr_c40_bd' },
   },
   {
     id: 'ser_vent', name: 'VENTILATOR SERIES 40MM', family: 'ventilator',
     face: 40, sash: 38, mullion: 38, transom: 38, interlock: 0, bead: 6,
     rate: 610, minSqft: 6, wastagePct: 0,
     note: 'Louver + exhaust fan cut-out ventilators for toilets and utilities.',
+    costing: 'sqft', labourPerSqft: 220,
+    sections: { frame: 'pr_c40_of', sash: 'pr_c40_sh', mullion: 'pr_c40_mu', transom: 'pr_c40_tr', bead: 'pr_c40_bd', louver: 'pr_lv_bl' },
   },
 ];
 

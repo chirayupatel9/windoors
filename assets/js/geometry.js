@@ -12,7 +12,7 @@
  * the module dimension runs to the centre-line of the divider.
  */
 
-import { isGlazed, ALL_FN } from './catalog.js';
+import { isGlazed, ALL_FN, FACE_ROLES } from './catalog.js';
 import * as U from './util.js';
 
 const { normaliseParts } = U;
@@ -284,4 +284,127 @@ export function describe(item) {
     return `${n} TRACK OPENABLE`.replace('TRACK ', '') + ' CASEMENT';
   }
   return 'FIXED';
+}
+
+
+/* --------------------------------------------------------------------
+ * Profile sections -> geometry, and geometry -> cut lengths.
+ * ------------------------------------------------------------------ */
+
+/**
+ * A series with its face widths taken from the profile sections assigned to
+ * it, so the master table drives the drawing and not just the price.
+ */
+export function resolveSeries(series, lib) {
+  if (!series) return series;
+  const assigned = series.sections || {};
+  const out = { ...series };
+  for (const [key, role] of Object.entries(FACE_ROLES)) {
+    const prof = lib?.profiles?.find((p) => p.id === assigned[role]);
+    if (prof && N(prof.face) > 0) out[key] = N(prof.face);
+  }
+  return out;
+}
+
+/** Finds an item's series and resolves it in one step. */
+export function seriesFor(item, lib) {
+  const raw = lib.series.find((s) => s.id === item?.seriesId) || lib.series[0];
+  return resolveSeries(raw, lib);
+}
+
+const perim = (w, h) => 2 * (N(w) + N(h));
+
+/**
+ * Cut lengths per profile role, in millimetres — the same list a saw operator
+ * would work from, and the basis for weight costing.
+ * @returns {Array<{role, label, count, each, total}>}
+ */
+export function cutList(sol, item) {
+  const W = sol.width, H = sol.height;
+  const rows = [];
+  const push = (role, label, count, each) => {
+    if (!(count > 0) || !(each > 0)) return;
+    rows.push({ role, label, count, each: Math.round(each), total: Math.round(count * each) });
+  };
+
+  // outer frame: mitred head, sill and two jambs
+  push('frame', 'Outer frame — head & sill', 2, W);
+  push('frame', 'Outer frame — jambs', 2, H);
+
+  for (const m of sol.members) {
+    if (m.kind === 'transom') push('transom', `Transom ${m.label || ''}`.trim(), 1, m.w);
+    if (m.kind === 'mullion') push('mullion', `Mullion ${m.label || ''}`.trim(), 1, m.h);
+  }
+
+  const slidingBySection = new Map();
+
+  for (const p of sol.panes) {
+    const isLeaf = !!ALL_FN[p.fn]?.sash;
+    const isMesh = p.fn === 'mesh' || p.fn === 'slide-mesh';
+
+    if (isMesh) {
+      push('meshSash', `Mesh sash ${p.tag}`, 2, p.w);
+      push('meshSash', `Mesh sash ${p.tag}`, 2, p.h);
+    } else if (isLeaf && p.fn !== 'louver' && p.fn !== 'fan') {
+      push('sash', `Sash ${p.tag} — rails`, 2, p.w);
+      push('sash', `Sash ${p.tag} — stiles`, 2, p.h);
+      if (p.sliding) {
+        slidingBySection.set(p.sectionIndex, (slidingBySection.get(p.sectionIndex) || 0) + 1);
+      }
+    }
+
+    if (p.fn === 'louver') {
+      // blades at roughly 100mm pitch
+      const blades = Math.max(2, Math.round(p.glass.h / 100));
+      push('louver', `Louver blades ${p.tag}`, blades, p.glass.w);
+    }
+
+    if (isGlazed(p.fn)) {
+      push('bead', `Glazing bead pane ${p.no}`, 2, p.glass.w);
+      push('bead', `Glazing bead pane ${p.no}`, 2, p.glass.h);
+    }
+  }
+
+  // meeting stiles: each pair of adjacent sliding sashes contributes two
+  for (const [si, count] of slidingBySection) {
+    if (count < 2) continue;
+    const pane = sol.panes.find((p) => p.sectionIndex === si && p.sliding);
+    push('interlock', 'Sliding interlock stiles', 2 * (count - 1), pane?.h || 0);
+  }
+
+  // merge identical role+length rows so the list reads like a cutting sheet
+  const merged = new Map();
+  for (const r of rows) {
+    const key = `${r.role}|${r.each}|${r.label}`;
+    if (merged.has(key)) merged.get(key).count += r.count;
+    else merged.set(key, { ...r });
+  }
+  return [...merged.values()].map((r) => ({ ...r, total: r.count * r.each }));
+}
+
+/** Rolls the cut list up per assigned profile: metres, kilos and bars. */
+export function metalSummary(sol, item, series, lib) {
+  const assigned = series.sections || {};
+  const byRole = new Map();
+  for (const r of cutList(sol, item)) {
+    byRole.set(r.role, (byRole.get(r.role) || 0) + r.total);
+  }
+  const lines = [];
+  let kg = 0, cost = 0, unpriced = [];
+  for (const [role, totalMm] of byRole) {
+    const prof = lib.profiles?.find((p) => p.id === assigned[role]);
+    const metres = totalMm / 1000;
+    if (!prof) {
+      unpriced.push(role);
+      lines.push({ role, profile: null, metres, kg: 0, cost: 0, bars: 0 });
+      continue;
+    }
+    const lineKg = metres * N(prof.kgPerM);
+    const lineCost = lineKg * N(prof.ratePerKg);
+    const bars = N(prof.barLength) > 0 ? Math.ceil(totalMm / N(prof.barLength)) : 0;
+    kg += lineKg;
+    cost += lineCost;
+    lines.push({ role, profile: prof, metres, kg: lineKg, cost: lineCost, bars });
+  }
+  return { lines, kg, cost, unpriced, totalMm: [...byRole.values()].reduce((a, b) => a + b, 0) };
 }

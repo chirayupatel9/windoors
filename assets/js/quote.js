@@ -5,7 +5,7 @@ import * as U from './util.js';
 import * as S from './store.js';
 import { drawSVG } from './draw.js';
 import { priceQuote } from './pricing.js';
-import { describe, solve, glazingGroups, meshGroups } from './geometry.js';
+import { describe, solve, glazingGroups, meshGroups, seriesFor, cutList, metalSummary } from './geometry.js';
 import { ALL_FN } from './catalog.js';
 
 const { el } = U;

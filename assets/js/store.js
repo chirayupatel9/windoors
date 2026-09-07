@@ -30,11 +30,13 @@ export const emptyItem = (lib, n = 1) => ({
 });
 
 export const defaultLibrary = () => ({
+  profiles: CAT.defaultProfiles(),
   series: CAT.defaultSeries(),
   glass: CAT.defaultGlass(),
   mesh: CAT.defaultMesh(),
   colours: CAT.defaultColours(),
   hardware: CAT.defaultHardware(),
+  lock: { hash: '', unlocked: true },
 });
 
 export const defaultCompany = () => ({
@@ -180,7 +182,15 @@ function migrateLib(lib) {
   const d = defaultLibrary();
   if (!lib) return d;
   const out = { ...d, ...lib };
-  for (const k of Object.keys(d)) if (!Array.isArray(out[k]) || !out[k].length) out[k] = d[k];
+  for (const k of Object.keys(d)) {
+    if (!Array.isArray(d[k])) continue;
+    if (!Array.isArray(out[k]) || !out[k].length) out[k] = d[k];
+  }
+  out.lock = { hash: '', unlocked: true, ...(lib.lock || {}) };
+  // series saved before profile sections existed default to flat-rate costing
+  out.series = out.series.map((s) => ({
+    costing: 'sqft', labourPerSqft: 0, sections: {}, ...s,
+  }));
   return out;
 }
 
@@ -293,4 +303,52 @@ export function fromJSON(text) {
   state.doc = migrateDoc(data.doc, state.lib);
   state.ui.selected = state.doc.items[0]?.id || null;
   emit();
+}
+
+
+/* --------------------------------------------------------------------
+ * Master-table lock.
+ *
+ * This keeps a salesperson from changing rates by accident. It is not a
+ * security boundary: the data lives in this browser and anyone determined
+ * can read it. Say so plainly in the UI rather than implying otherwise.
+ * ------------------------------------------------------------------ */
+
+export async function hashCode(code) {
+  const text = String(code ?? '');
+  if (!text) return '';
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('windoors:' + text));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    // http:// without a secure context has no SubtleCrypto — still better than nothing
+    let h = 5381;
+    for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) >>> 0;
+    return 'fnv' + h.toString(16);
+  }
+}
+
+export const mastersLocked = () => !!state.lib.lock?.hash && !state.lib.lock?.unlocked;
+export const mastersProtected = () => !!state.lib.lock?.hash;
+
+export async function setPasscode(code) {
+  const hash = await hashCode(code);
+  update((s) => { s.lib.lock = { hash, unlocked: true }; });
+  return true;
+}
+
+export async function unlockMasters(code) {
+  const hash = await hashCode(code);
+  if (!hash || hash !== state.lib.lock?.hash) return false;
+  update((s) => { s.lib.lock.unlocked = true; });
+  return true;
+}
+
+export function lockMasters() {
+  if (!state.lib.lock?.hash) return;
+  update((s) => { s.lib.lock.unlocked = false; });
+}
+
+export function removePasscode() {
+  update((s) => { s.lib.lock = { hash: '', unlocked: true }; });
 }

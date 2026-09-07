@@ -6,8 +6,10 @@ import * as UI from './ui.js';
 import * as S from './store.js';
 import { drawSVG } from './draw.js';
 import { priceItem } from './pricing.js';
-import { describe, solve } from './geometry.js';
-import { CELL_FN, SLIDING_FN, ALL_FN } from './catalog.js';
+import { describe, solve, seriesFor, metalSummary } from './geometry.js';
+import { CELL_FN, SLIDING_FN, ALL_FN, PROFILE_ROLES } from './catalog.js';
+
+const roleName = (r) => PROFILE_ROLES[r] || r;
 import { PRESETS, PRESET_GROUPS, applyPreset } from './presets.js';
 
 const { el } = U;
@@ -28,7 +30,7 @@ export function renderItemsTab(root) {
 function itemList(st, current) {
   const list = el('div', { class: 'itemlist-scroll' });
   st.doc.items.forEach((it, i) => {
-    const series = st.lib.series.find((s) => s.id === it.seriesId) || st.lib.series[0];
+    const series = seriesFor(it, st.lib);
     const colour = st.lib.colours.find((c) => c.id === it.colourId);
     const p = priceItem(it, st.lib);
     const card = el('button', {
@@ -64,7 +66,7 @@ function itemList(st, current) {
 
 function editorPane(st, item) {
   const lib = st.lib;
-  const series = lib.series.find((s) => s.id === item.seriesId) || lib.series[0];
+  const series = seriesFor(item, lib);
   const colour = lib.colours.find((c) => c.id === item.colourId) || lib.colours[0];
   const price = priceItem(item, lib);
 
@@ -91,6 +93,7 @@ function editorPane(st, item) {
 
 function basics(item, st, set) {
   const lib = st.lib;
+  const series = seriesFor(item, lib);
   return UI.section('Item',
     UI.grid(2,
       UI.field('Mark / label', UI.textInput(item.label, (v) => set({ label: v }))),
@@ -100,7 +103,7 @@ function basics(item, st, set) {
       UI.field('Height (mm)', UI.numInput(item.height, (v) => resize(item, null, U.num(v, 1)), { min: 100, step: 5 }))),
     UI.field('Series / profile system',
       UI.select(item.seriesId, lib.series.map((s) => ({ value: s.id, label: s.name })), (v) => set({ seriesId: v })),
-      seriesHint(lib.series.find((s) => s.id === item.seriesId))),
+      seriesHint(series)),
     UI.grid(2,
       UI.field('Location', UI.textInput(item.location, (v) => set({ location: v }), { placeholder: 'GF HALL FRONT SIDE' })),
       UI.field('Floor', UI.textInput(item.floor, (v) => set({ floor: v }), { placeholder: '0' }))),
@@ -110,7 +113,13 @@ function basics(item, st, set) {
       UI.button('Duplicate', () => S.duplicateItem(item.id), { class: 'btn' })));
 }
 
-const seriesHint = (s) => (s ? `frame ${s.face}mm · sash ${s.sash}mm · ₹${s.rate}/sq.ft · min ${s.minSqft} sq.ft` : '');
+const seriesHint = (s) => {
+  if (!s) return '';
+  const cost = s.costing === 'weight'
+    ? `costed by weight · labour ₹${U.num(s.labourPerSqft)}/sq.ft`
+    : `₹${U.num(s.rate)}/sq.ft`;
+  return `frame ${U.mm(s.face)}mm · sash ${U.mm(s.sash)}mm · ${cost} · min ${U.num(s.minSqft)} sq.ft`;
+};
 
 /** Resizing keeps the section/cell proportions and re-fits them to the new size. */
 function resize(item, w, h) {
@@ -154,7 +163,8 @@ const HANDLE_OPTS = ['BLACK', 'SILVER', 'WHITE', 'CHAMPAGNE', 'ROSE GOLD'].map((
 function priceBox(item, price, set) {
   const b = price.breakdown;
   const rows = [
-    ['Aluminium + fabrication', b.profile],
+    [price.byWeight ? 'Aluminium (by weight)' : 'Aluminium + fabrication', price.byWeight ? b.metalCost : b.profile],
+    ['Fabrication labour', b.labour],
     ['Powder coat / finish', b.finish],
     ['Glass', b.glass],
     ['Mesh', b.mesh],
@@ -163,6 +173,21 @@ function priceBox(item, price, set) {
     ['Add-on', b.addons],
     ['Line discount', -b.discount],
   ].filter(([, v]) => Math.abs(v) > 0.005);
+
+  const metalRows = price.byWeight && price.metal
+    ? el('details', { class: 'metal' },
+      el('summary', {}, `Aluminium — ${U.round(price.metal.kg, 2)} kg over ${U.round(price.metal.totalMm / 1000, 1)} m`),
+      el('table', { class: 'mini' }, el('tbody', {},
+        ...price.metal.lines.map((l) => el('tr', {},
+          el('td', {}, l.profile ? `${l.profile.code} · ${roleName(l.role)}` : `${roleName(l.role)} — no section assigned`),
+          el('td', { class: 'r' }, `${U.round(l.metres, 2)} m`),
+          el('td', { class: 'r' }, `${U.round(l.kg, 2)} kg`),
+          el('td', { class: 'r' }, l.profile ? U.inr(l.cost) : '—'))),
+        el('tr', { class: 'sep' },
+          el('td', {}, 'Bars to order'),
+          el('td', { class: 'r', colspan: 3 },
+            price.metal.lines.filter((l) => l.bars).map((l) => `${l.bars} × ${l.profile.code}`).join(', ') || '—')))))
+    : null;
 
   return UI.section('Price',
     el('table', { class: 'mini' },
@@ -177,6 +202,7 @@ function priceBox(item, price, set) {
         el('tr', { class: 'tot' },
           el('td', {}, `Total × ${price.qty}`),
           el('td', { class: 'r b' }, '₹ ' + U.inr(price.total))))),
+    metalRows,
     UI.grid(3,
       UI.field('Add-on ₹', UI.numInput(item.addonAmount, (v) => set({ addonAmount: U.num(v) }), { step: 100 })),
       UI.field('Discount %', UI.numInput(item.discountPct, (v) => set({ discountPct: U.num(v) }), { step: 1, min: 0, max: 100 })),
@@ -322,7 +348,7 @@ export function openPresetPicker(target) {
     for (const p of PRESETS.filter((x) => x.group === group)) {
       const demo = { width: p.w, height: p.h, sections: [] };
       applyPreset(demo, p, st.lib, true);
-      const series = st.lib.series.find((s) => s.id === demo.seriesId) || st.lib.series[0];
+      const series = seriesFor(demo, st.lib);
       gridEl.append(el('button', {
         type: 'button', class: 'preset',
         onclick: () => {
