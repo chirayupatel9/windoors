@@ -842,3 +842,21 @@ input[type="date"].inp::-webkit-calendar-picker-indicator:hover { opacity: 1; }
   .quoterow-val { grid-column: 2; justify-self: end; }
   .quoterow-open { grid-column: 1; justify-self: start; }
 }
+
+/* ---------------- reports ---------------- */
+
+.reportbar { gap: var(--s3); }
+.reportpick { display: flex; flex-wrap: wrap; gap: 4px; }
+.reportpick .segbtn {
+  border: 1px solid var(--line-2); border-radius: var(--radius);
+  padding: 0 var(--s3); min-height: 32px;
+}
+.reportbar-side { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.reportbar-side .note { margin: 0; flex: 1; min-width: 160px; }
+
+@media (max-width: 768px) {
+  .reportpick { width: 100%; }
+  .reportpick .segbtn { flex: 1 1 auto; min-height: 44px; }
+  .reportbar-side { width: 100%; }
+  .reportbar-side .btn { flex: 1; justify-content: center; }
+}

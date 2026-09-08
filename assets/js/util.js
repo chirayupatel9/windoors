@@ -118,3 +118,41 @@ export function normaliseParts(parts, total) {
   }
   return ints;
 }
+
+
+/** Parses CSV, handling quoted fields and embedded newlines. */
+export function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', quoted = false;
+  const src = String(text ?? '').replace(/^\ufeff/, '');
+
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (quoted) {
+      if (c === '"') {
+        if (src[i + 1] === '"') { field += '"'; i++; }
+        else quoted = false;
+      } else field += c;
+      continue;
+    }
+    if (c === '"') { quoted = true; continue; }
+    if (c === ',') { row.push(field); field = ''; continue; }
+    if (c === '\r') continue;
+    if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; continue; }
+    field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((v) => String(v).trim() !== ''));
+}
+
+/** Rows of objects keyed by a normalised header, so column order does not matter. */
+export function csvToObjects(text) {
+  const rows = parseCSV(text);
+  if (rows.length < 2) return [];
+  const key = (h) => String(h).trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const head = rows[0].map(key);
+  return rows.slice(1).map((r) => Object.fromEntries(head.map((h, i) => [h, (r[i] ?? '').trim()])));
+}
+
+export const toCSV = (rows) =>
+  rows.map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');

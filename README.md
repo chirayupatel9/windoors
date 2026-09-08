@@ -58,11 +58,24 @@ named charge, GST and round-off.
 rendered row heights so a tall drawing never gets sliced across a page break.
 Print (or Ctrl/Cmd-P) goes through the browser to paper or PDF.
 
-**Get it out.** Single drawing as PNG or SVG, all drawings as one PNG contact
-sheet, the priced lines as CSV, the whole job as a `.json` file, and a **cutting
-list** CSV for the factory — every cut length by mark, plus metres, kilos and
-bars to order per profile. The cutting list is shop paperwork and never appears
-on the customer's quotation.
+**Get the paperwork out.** The Reports tab carries the five documents a job
+actually needs, each readable as an A4 sheet, printable to PDF, and exportable
+to Excel — one report at a time or all five as one workbook:
+
+| Report | What it carries |
+| --- | --- |
+| Estimate | The priced lines, with sizes, series, glazing and totals |
+| Aluminium purchase order | Per section: metres consumed, whole bars to order, weight and value |
+| Glass cutting list | Every pane at cut size, inside the bead, grouped by glass type |
+| Aluminium cutting list | Every piece to cut, by section, longest first |
+| Hardware list | Every fitting, counted from the opening type of each leaf |
+
+The Excel files are written by the app itself, so they work offline and from
+the single-file build with no library to load.
+
+Also: a single drawing as PNG or SVG, all drawings as one PNG contact sheet,
+the priced lines as CSV, and the whole job as a `.json` file. The shop
+paperwork never appears on the customer's quotation.
 
 ## Customers and quotations
 
@@ -89,7 +102,7 @@ Open **Masters** and edit in place — nothing is hard-coded:
 
 | Table | What it drives |
 | --- | --- |
-| Profile sections | One row per extrusion you buy: code, description, role, face width, kg/m, rate/kg, standard bar length |
+| Profile sections | One row per extrusion you buy: code, description, role, face width, kg/m, rate/kg, standard bar length. Import and export as CSV — a code already present is updated in place, keeping the series it is assigned to |
 | Profile series | What you pick on an item. Assign sections to its roles, then cost it by flat rate per sq.ft or by weight |
 | Glazing | Glass names and rate per sq.ft |
 | Mesh | Mesh types and rate per sq.ft |
@@ -147,7 +160,7 @@ prints.
 
 | Key | Action |
 | --- | --- |
-| `1` `2` `3` `4` | Items / Quotation / Setup / Masters |
+| `1` `2` `3` `4` `5` | Items / Quotation / Reports / Setup / Masters |
 | `N` | Add an item |
 | `Ctrl`/`Cmd` `P` | Print the quotation |
 | `Ctrl`/`Cmd` `S` | Save the job file |
@@ -187,6 +200,9 @@ assets/js/
                           colour, hardware
   presets.js              26 ready-made configurations
   store.js                state, localStorage, JSON import/export
+  reports.js              the five production reports, as data
+  reportview.js           their A4 sheets and Excel export
+  xlsx.js                 a small dependency-free .xlsx writer
   editor.js  quote.js  settings.js (masters)  ui.js  exporters.js  app.js
 tools/build-single.mjs    optional single-file bundle
 ```

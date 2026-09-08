@@ -6,6 +6,7 @@ import * as S from './store.js';
 import { renderItemsTab, openPresetPicker } from './editor.js';
 import { renderQuoteTab } from './quote.js';
 import { renderSetupTab, renderMastersTab } from './settings.js';
+import { renderReportsTab, exportAllReports } from './reportview.js';
 import * as X from './exporters.js';
 import { priceQuote } from './pricing.js';
 import { BRAND_MARK, ICON } from './icons.js';
@@ -15,6 +16,7 @@ const { el, $ } = U;
 const TABS = [
   { id: 'items', label: 'Items', render: renderItemsTab },
   { id: 'quote', label: 'Quotation', render: renderQuoteTab },
+  { id: 'reports', label: 'Reports', render: renderReportsTab },
   { id: 'setup', label: 'Setup', render: renderSetupTab },
   { id: 'masters', label: 'Masters', render: renderMastersTab },
 ];
@@ -71,6 +73,7 @@ function topbar(st) {
           menuItem('Drawings as PNG sheet', X.exportAllPNG),
           menuItem('Priced lines as CSV', () => X.exportCSV(priceQuote(S.state.doc, S.state.lib))),
           menuItem('Cutting list as CSV (factory)', X.exportCutList),
+          menuItem('All reports as one Excel workbook', exportAllReports),
           menuItem('Current drawing as PNG', () => {
             const it = S.findItem(S.state.ui.selected);
             if (it) X.exportItemPNG(it); else UI.toast('Select an item first', 'err');
@@ -228,7 +231,7 @@ function bindGlobalEvents() {
     }
     if (typing) return;
     if (e.key === 'n' && S.state.ui.tab === 'items') { e.preventDefault(); openPresetPicker(); }
-    if (e.key >= '1' && e.key <= '4') go(TABS[+e.key - 1].id);
+    if (e.key >= '1' && e.key <= '5') go(TABS[+e.key - 1].id);
   });
 }
 

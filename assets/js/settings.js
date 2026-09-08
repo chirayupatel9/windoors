@@ -7,6 +7,7 @@ import * as S from './store.js';
 import { priceQuote } from './pricing.js';
 import { FAMILIES, PROFILE_ROLES } from './catalog.js';
 import { ICON } from './icons.js';
+import { download } from './exporters.js';
 
 const { el } = U;
 
@@ -336,10 +337,73 @@ function profileTable(lib) {
           el('th', { title: 'Standard stock length' }, 'Bar mm'),
           el('th', { class: 'r' }, '₹ / m'), el('th', {}))),
         body)),
-    addBtn('+ Add profile section', () => S.update(() => lib.profiles.push({
-      id: U.uid('pr'), code: 'NEW-01', name: 'New section', role: 'other',
-      face: 0, kgPerM: 0.5, ratePerKg: 350, barLength: 4877,
-    }))));
+    UI.row(
+      addBtn('+ Add profile section', () => S.update(() => lib.profiles.push({
+        id: U.uid('pr'), code: 'NEW-01', name: 'New section', role: 'other',
+        face: 0, kgPerM: 0.5, ratePerKg: 350, barLength: 4877,
+      }))),
+      UI.button('Export as CSV', () => exportProfiles(lib), { class: 'btn sm' }),
+      UI.button('Import from CSV…', () => importProfiles(), { class: 'btn sm', disabled: ro })),
+    el('p', { class: 'note' },
+      'Import matches on the code: a code already here is updated in place, keeping the series it is assigned to; anything new is added. Export first to get the column headings.'));
+}
+
+const PROFILE_COLS = [
+  ['code', 'Code'], ['name', 'Description'], ['role', 'Role'], ['face', 'Face mm'],
+  ['kgPerM', 'kg per m'], ['ratePerKg', 'Rate per kg'], ['barLength', 'Bar length mm'],
+];
+
+function exportProfiles(lib) {
+  const rows = [
+    PROFILE_COLS.map(([, label]) => label),
+    ...lib.profiles.map((p) => PROFILE_COLS.map(([k]) => p[k] ?? '')),
+  ];
+  download('windoors_profiles.csv', new Blob(['\ufeff' + U.toCSV(rows)], { type: 'text/csv' }))
+    .then((okay) => { if (okay) UI.toast(`${lib.profiles.length} profile sections exported`); });
+}
+
+function importProfiles() {
+  const input = el('input', { type: 'file', accept: '.csv,text/csv' });
+  input.onchange = async () => {
+    const f = input.files?.[0];
+    if (!f) return;
+    try {
+      const rows = U.csvToObjects(await f.text());
+      if (!rows.length) return UI.toast('That file has no rows', 'err');
+      const roles = Object.keys(PROFILE_ROLES);
+      let added = 0, updated = 0, skipped = 0;
+
+      S.update((st) => {
+        for (const r of rows) {
+          const code = (r.code || '').trim();
+          if (!code) { skipped++; continue; }
+          const roleRaw = (r.role || '').trim();
+          const role = roles.find((x) => x.toLowerCase() === roleRaw.toLowerCase())
+            || roles.find((x) => (PROFILE_ROLES[x] || '').toLowerCase() === roleRaw.toLowerCase())
+            || 'other';
+          const fields = {
+            code,
+            name: r.description || r.name || code,
+            role,
+            face: U.num(r.facemm ?? r.face),
+            kgPerM: U.num(r.kgperm ?? r.kgm ?? r.kgpermetre),
+            ratePerKg: U.num(r.rateperkg ?? r.ratekg),
+            barLength: U.num(r.barlengthmm ?? r.barlength ?? r.barmm, 4877),
+          };
+          // matching on the code keeps the id, so series assignments survive
+          const existing = st.lib.profiles.find(
+            (p) => (p.code || '').trim().toLowerCase() === code.toLowerCase());
+          if (existing) { Object.assign(existing, fields); updated++; }
+          else { st.lib.profiles.push({ id: U.uid('pr'), ...fields }); added++; }
+        }
+      });
+
+      UI.toast(`${updated} updated, ${added} added${skipped ? `, ${skipped} without a code skipped` : ''}`);
+    } catch (e) {
+      UI.toast('Could not read that CSV', 'err');
+    }
+  };
+  input.click();
 }
 
 /* ---- series ---- */
