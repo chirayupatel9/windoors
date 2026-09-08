@@ -136,8 +136,10 @@ stay fully editable throughout — only rates and profiles are protected.
 Open **Setup** for your company details and logo, bank details, quote number,
 customer, charges and the terms & conditions text.
 
-> The bank details you enter live only in your browser and in job files you save
-> yourself — they are not in this repository.
+> Your company details, bank details and rates live only in your browser and in
+> job files you save yourself — none of it is in this repository. The built-in
+> series and profile sections are generic starting points, not any firm's real
+> rate card.
 
 ## Keyboard
 

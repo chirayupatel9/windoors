@@ -70,11 +70,17 @@ export const emptyCustomer = () => ({
   note: '',
 });
 
+/*
+ * Blank on purpose. These print on the letterhead of every quotation the
+ * software sends out, so they are filled in by whoever is using it — shipping
+ * one firm's name and GSTIN as another's default would put the wrong company
+ * on a customer's paperwork.
+ */
 export const defaultCompany = () => ({
-  name: 'WOLF GERMAN WINDOW',
-  address: 'Opp. Rural Police Station, Kadodra-Surat Road,\nTen, Ta. Bardoli - 394601',
-  phone: '+91 9512368444',
-  email: 'wolfgermanwindow@gmail.com',
+  name: '',
+  address: '',
+  phone: '',
+  email: '',
   gstin: '',
   logo: '',           // data URL, set by the user
   bankName: '',

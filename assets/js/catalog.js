@@ -44,7 +44,7 @@ export const FACE_ROLES = {
 };
 
 export const defaultProfiles = () => [
-  // WOLF 40mm casement
+  // 40mm casement
   { id: 'pr_c40_of', code: 'WC40-OF', name: 'Casement 40mm outer frame', role: 'frame', face: 40, kgPerM: 0.985, ratePerKg: 348, barLength: 4877 },
   { id: 'pr_c40_sh', code: 'WC40-SH', name: 'Casement 40mm shutter', role: 'sash', face: 40, kgPerM: 0.921, ratePerKg: 348, barLength: 4877 },
   { id: 'pr_c40_mu', code: 'WC40-MU', name: 'Casement 40mm mullion', role: 'mullion', face: 40, kgPerM: 1.184, ratePerKg: 348, barLength: 4877 },
@@ -71,7 +71,7 @@ export const defaultProfiles = () => [
 
 export const defaultSeries = () => [
   {
-    id: 'ser_cas40', name: 'WOLF 40MM CASEMENT SERIES', family: 'casement',
+    id: 'ser_cas40', name: '40MM CASEMENT SERIES', family: 'casement',
     face: 40, sash: 40, mullion: 40, transom: 40, interlock: 0, bead: 6,
     rate: 640, minSqft: 10, wastagePct: 0,
     note: '40mm casement system — fixed, openable, top-hung and ventilator combinations.',
@@ -79,7 +79,7 @@ export const defaultSeries = () => [
     sections: { frame: 'pr_c40_of', sash: 'pr_c40_sh', mullion: 'pr_c40_mu', transom: 'pr_c40_tr', bead: 'pr_c40_bd' },
   },
   {
-    id: 'ser_vegaslim', name: 'WOLF VEGA SLIM SLIDING SERIES', family: 'sliding',
+    id: 'ser_vegaslim', name: 'SLIM SLIDING SERIES', family: 'sliding',
     face: 18, sash: 32, mullion: 40, transom: 40, interlock: 18, bead: 5,
     rate: 590, minSqft: 10, wastagePct: 0, tracks: [2, 3, 4],
     note: 'Slim-line sliding with narrow interlock — 2, 3 and 4 track.',
@@ -87,7 +87,7 @@ export const defaultSeries = () => [
     sections: { frame: 'pr_vs_of', sash: 'pr_vs_sh', interlock: 'pr_vs_il', meshSash: 'pr_vs_ms', bead: 'pr_vs_bd' },
   },
   {
-    id: 'ser_silenza', name: 'WOLF SILENZA HIDDEN SLIM SLIDING SERIES', family: 'sliding',
+    id: 'ser_silenza', name: 'HIDDEN SLIM SLIDING SERIES', family: 'sliding',
     face: 20, sash: 26, mullion: 40, transom: 40, interlock: 16, bead: 5,
     rate: 780, minSqft: 10, wastagePct: 0, tracks: [2, 3, 4],
     note: 'Hidden-sash slim sliding — minimum sightline.',
